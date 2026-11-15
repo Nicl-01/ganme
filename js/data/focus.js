@@ -56,7 +56,7 @@
   ];
   N.Cassine = [
     F('ca_exchange', 'The Cassine Exchange', 2, 0, { hist: 1, desc: 'Open the busiest exchange on the continent to the world.', fx: [['conf', 10], ['gold', 80]] }),
-    F('ca_navy', 'A blue-water navy', 0, 1, { hist: 1, req: ['ca_exchange'], desc: 'Ports and squadrons to keep the sea lanes open.', fx: [['build', PORT, 2], ['mod', 'def', 0.05, PERM, 'Navy']] }),
+    F('ca_navy', 'A blue-water navy', 0, 1, { hist: 1, req: ['ca_exchange'], desc: 'Ports and squadrons to keep the sea lanes open.', fx: [['build', PORT, 2], ['mod', 'def', 0.05, PERM, 'Navy'], ['mod', 'navy', 0.4, PERM, 'Blue-water navy']] }),
     F('ca_mills', 'Mills of the south', 2, 1, { hist: 1, req: ['ca_exchange'], desc: 'Let capital build. The state will hold the ladder.', fx: [['build', FACT, 2], ['sup', 'workers', -4], ['sup', 'capital', 5]] }),
     F('ca_charter', 'The Workers’ Charter', 4, 1, { req: ['ca_exchange'], desc: 'Recognise the unions before they stop asking.', fx: [['law', 'labor', 'free'], ['sup', 'workers', 12], ['sup', 'capital', -6]] }),
     F('ca_league', 'League of Free Nations', 1, 2, { hist: 1, req: ['ca_navy'], year: 1912, desc: 'A compact of the republics of the west.', fx: [['ally', 'Tessaly'], ['op', 'Norvik', 15]] }),
@@ -110,7 +110,7 @@
   N.Lys = [
     F('ly_houses', 'The Council of Houses', 2, 0, { hist: 1, desc: 'The great families divide the year’s profits and the decade’s plans.', fx: [['sup', 'capital', 8], ['gold', 100]] }),
     F('ly_tolls', 'Toll the straits', 1, 1, { hist: 1, req: ['ly_houses'], desc: 'Every hull between the continents pays.', fx: [['mod', 'trade', 0.2, PERM, 'Straits tolls']] }),
-    F('ly_galleys', 'Galleys of Lys', 3, 1, { hist: 1, req: ['ly_houses'], desc: 'A navy far larger than the island.', fx: [['build', PORT, 2], ['mod', 'def', 0.08, PERM, 'Lysian navy']] }),
+    F('ly_galleys', 'Galleys of Lys', 3, 1, { hist: 1, req: ['ly_houses'], desc: 'A navy far larger than the island.', fx: [['build', PORT, 2], ['mod', 'def', 0.08, PERM, 'Lysian navy'], ['mod', 'navy', 0.4, PERM, 'Galleys of Lys']] }),
     F('ly_neutral', 'The neutral straits', 1, 2, { hist: 1, req: ['ly_tolls'], desc: 'Open to every flag, closed to every war.', fx: [['opAll', 8]] }),
     F('ly_bank', 'Bank of the Two Continents', 2, 2, { req: ['ly_tolls'], desc: 'Lend to both sides of every war.', fx: [['gold', 250], ['op', 'Cassine', 15]] }),
     F('ly_east', 'Lean east', 3, 2, { req: ['ly_galleys'], excl: ['ly_west'], desc: 'Hesperia pays better.', fx: [['ally', 'Hesperia']] }),

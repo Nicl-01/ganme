@@ -189,6 +189,26 @@
   };
 
   /* ================================================================ WAR */
+  /* Equipment in plain numbers: what the army needs, what the arms budget pays. */
+  function equipTip(n) {
+    const need = n.a.armsNeed || 1, paid = n.a.armsPaid || 0, tg = n.a.eqTarget != null ? n.a.eqTarget : n.equip;
+    return '<h5>Equipment ' + Math.round(n.equip * 100) + '%</h5>Rifles, guns, lorries and shells. It multiplies attack directly and defence a little less.<div class="kv"><span>The army needs</span><b>' + need.toFixed(1) + ' gold a month</b><span>The arms budget pays</span><b class="' + (paid < need * 0.9 ? 'bad' : 'good') + '">' + paid.toFixed(1) + '</b><span>Heading for</span><b>' + Math.round(tg * 100) + '%</b></div><hr>' +
+      (paid < need * 0.95 ? '<b>To raise it:</b> give arms a larger share of the budget (State), raise revenue, or keep fewer men under arms: every soldier needs kit.' : 'The army is fully paid for. Spending more than it needs buys up to 135%.') +
+      (n.a.shortage ? '<br><span class="bad">Shortages in industry are costing ten points.</span>' : '') + '<br><span class="dim">It moves a tenth of the way to its target each month, so a big draft or a budget cut shows up slowly.</span>';
+  }
+  function supplyCard(G, n) {
+    let cutN = 0, seaN = 0; const where = { cut: -1, sea: -1 };
+    for (let p = 1; p < G.provinces.length; p++) { const Pr = G.provinces[p]; if (Pr.owner !== n.id || G.owner[Pr.center] !== n.id) continue; const st = G.cut[Pr.center]; if (st === 1) { cutN++; if (where.cut < 0) where.cut = Pr.center; } else if (st === 2) { seaN++; if (where.sea < 0) where.sea = Pr.center; } }
+    const C = ID.Combat;
+    let h = kv([
+      ['By land', '<span class="good">the rest of the country</span>', 'Everything joined to your capital by an unbroken stretch of your own land.'],
+      ['By sea', seaN ? '<span class="warn">' + seaN + ' province' + (seaN > 1 ? 's' : '') + '</span> ' + btn('Show', 'goto', where.sea, { cls: 'sm ghost' }) : '<span class="dim">none</span>', 'Land across the water, supplied through a port or through the beachhead your troops landed on. It fights normally as long as you hold that port or beach.'],
+      ['Cut off', cutN ? '<span class="bad">' + cutN + ' province' + (cutN > 1 ? 's' : '') + '</span> ' + btn('Show', 'goto', where.cut, { cls: 'sm ghost' }) : '<span class="good">none</span>', 'No land link, port or beachhead. With an enemy at war beside it, a pocket surrenders within about forty days and takes its share of your troops with it. Relieve it by land, land troops on its coast, or finish a port there.'],
+      ['Sea power', '<b>' + C.seaPower(n).toFixed(1) + '</b>', '<h5>Sea power</h5>Ports × your system’s seamanship × military technology × naval programmes.<hr>It protects your coast: an enemy convoy loses about 11% of its troops for each time your sea power exceeds theirs, up to half. It also makes your own landings cheaper.'],
+    ]);
+    h += '<p class="dim" style="font-size:13.5px;margin-top:6px">The Supply map (B) shows all three. Encircling the enemy works the same way against them.</p>';
+    return h;
+  }
   Pn.mil = function (G, n) {
     const I = ID.ideo(n), r = ID.RECRUIT[n.laws.recruit], d = I.doctrine, Dp = ID.Diplomacy; let h = '';
     const mx = ID.maxMob(n);
@@ -196,12 +216,14 @@
       '<div class="gauge"' + tip('<h5>Attack ×' + (n.a.atk || 1).toFixed(2) + '</h5><div class="kv"><span>' + esc(r.name) + '</span><b>×' + r.atk + '</b><span>Doctrine</span><b>×' + d.atk + '</b><span>Morale</span><b>×' + (n.a.morale || 1).toFixed(2) + '</b><span>Equipment</span><b>×' + n.equip.toFixed(2) + '</b><span>Technology</span><b>×' + (1 + 0.07 * n.tech.mil).toFixed(2) + '</b></div><hr>Morale follows ' + (d.morale === 'legit' ? 'legitimacy' : d.morale === 'charisma' ? 'the Leader’s authority' : d.morale === 'gold' ? 'whether the troops are paid' : 'the support of the ' + esc(ID.factionName(n, d.morale)).toLowerCase()) + ' and falls with war weariness.') + '><i>Attack</i><b>×' + (n.a.atk || 1).toFixed(2) + '</b></div>' +
       '<div class="gauge"' + tip('<h5>Defence ×' + (n.a.def || 1).toFixed(2) + '</h5>On your own core provinces this is multiplied again by <b>×' + d.home + '</b>.') + '><i>Defence</i><b>×' + (n.a.def || 1).toFixed(2) + '</b></div></div>';
     h += sec('Mobilisation', '<div class="sl"><span' + tip('<h5>Mobilisation</h5>The share of the population the pool refills toward. ' + esc(r.name) + ' allows up to ' + (mx * 100).toFixed(1) + '%.<hr>Every soldier is a worker missing from farm and factory: above about 6% output starts to fall. Peasants resent anything over 8%.') + '>Under arms</span><input type="range" min="5" max="' + Math.round(mx * 1000) + '" step="1" value="' + Math.round(n.mob * 1000) + '" data-in="mob" data-fmt="mob"><b data-val>' + (n.mob * 100).toFixed(1) + '%</b></div>' +
-      kv([['Recruitment', esc(r.name), esc(r.desc)], ['Equipment', '<span class="' + (n.equip < 0.85 ? 'bad' : n.equip > 1.1 ? 'good' : '') + '">' + Math.round(n.equip * 100) + '%</span>', 'Follows the arms budget relative to the size of the army.'], ['War weariness', '<span class="' + (n.we > 50 ? 'bad' : n.we > 25 ? 'warn' : '') + '">' + Math.round(n.we) + '</span>', 'Rises with casualties and every month at war. Cuts morale, stability and the patience of workers and peasants.'], ['Losses so far', ID.fmtPop(n.losses)], ['Largest single offensive', Math.round((n.emergency ? 1 : I.control.cap) * 100) + '% of the pool', I.control.cap < 1 ? esc(I.name) + ' cannot concentrate its forces: the militias answer to their assemblies.' : 'No limit.']]));
+      kv([['Recruitment', esc(r.name), esc(r.desc)], ['Equipment', '<span class="' + (n.equip < 0.85 ? 'bad' : n.equip > 1.1 ? 'good' : '') + '">' + Math.round(n.equip * 100) + '%</span>' + (n.a.eqTarget != null && Math.abs(n.a.eqTarget - n.equip) > 0.02 ? ' <span class="dim">→ ' + Math.round(n.a.eqTarget * 100) + '%</span>' : ''), equipTip(n)], ['War weariness', '<span class="' + (n.we > 50 ? 'bad' : n.we > 25 ? 'warn' : '') + '">' + Math.round(n.we) + '</span>', 'Rises with casualties and every month at war. Cuts morale, stability and the patience of workers and peasants.'], ['Losses so far', ID.fmtPop(n.losses)], ['Largest single offensive', Math.round((n.emergency ? 1 : I.control.cap) * 100) + '% of the pool', I.control.cap < 1 ? esc(I.name) + ' cannot concentrate its forces: the militias answer to their assemblies.' : 'No limit.']]));
+
+    h += sec('Supply', supplyCard(G, n));
 
     let wh = '';
     for (const e of Dp.enemies(G, n)) {
       const w = Dp.warOf(G, n.id, e.id), s = Dp.warScore(G, n, e), ev = Dp.evalProposal(G, n, e, 'peace');
-      wh += '<div class="card"><div class="row nw">' + R.swatch(e) + '<b style="flex:1">' + esc(e.name) + '</b><span class="dim num">' + yrs(Math.round((G.tick - w.start) / 30)) + '</span></div><div class="row nw" style="margin:5px 0"' + tip('War score: tiles taken against tiles lost, relative to the smaller state. Past ±12% the peace names a victor.') + '><span style="font-size:13.5px">losing</span>' + bar(s + 1, 2, s > 0.05 ? 'g' : s < -0.05 ? 'r' : '', 1) + '<span style="font-size:13.5px">winning</span></div><div class="row">' + btn('Show', 'goto', e.capital, { cls: 'sm ghost' }) + btn('Offer peace', 'propose', [e.id, 'peace'], { cls: 'sm ghost', off: ev.ok ? '' : ev.why, tip: 'Each side keeps what it holds.' }) + '<span class="dim" style="font-size:13.5px">' + ID.fmtPop(e.troops) + ' troops · ' + Dp.CB_NAMES[w.cb] + '</span></div></div>';
+      wh += '<div class="card"><div class="row nw">' + R.swatch(e) + '<b style="flex:1">' + esc(e.name) + '</b><span class="dim num">' + yrs(Math.round((G.tick - w.start) / 30)) + '</span></div><div class="row nw" style="margin:5px 0"' + tip('War score: tiles taken against tiles lost, relative to the smaller state. Past ±12% the peace names a victor.') + '><span style="font-size:13.5px">losing</span>' + bar(s + 1, 2, s > 0.05 ? 'g' : s < -0.05 ? 'r' : '', 1) + '<span style="font-size:13.5px">winning</span></div><div class="row">' + btn('Show', 'goto', e.capital, { cls: 'sm ghost' }) + btn('Offer peace', 'propose', [e.id, 'peace'], { cls: 'sm ghost', off: ev.ok ? '' : ev.why, tip: 'Each side keeps what it holds.' }) + '<span class="dim" style="font-size:13.5px">' + ID.fmtPop(e.troops) + ' troops · ' + Dp.CB_NAMES[w.cb] + '</span></div>' + (ID.Combat.underdog(e, n) > 1.01 ? '<div class="good" style="font-size:13.5px"' + tip('A much stronger enemy meets the whole nation in arms: the weaker side defends better, up to +35%.') + '>The nation in arms: our defence +' + Math.round((ID.Combat.underdog(e, n) - 1) * 100) + '% against them</div>' : ID.Combat.underdog(n, e) > 1.01 ? '<div class="warn" style="font-size:13.5px"' + tip('We are much stronger: their whole nation is in arms against us.') + '>They are fighting for their lives: their defence +' + Math.round((ID.Combat.underdog(n, e) - 1) * 100) + '%</div>' : '') + '</div>';
     }
     h += sec('Wars', wh || '<p class="dim">At peace. To start a war, select a state on the map.</p>');
 
@@ -220,6 +242,34 @@
   };
 
   /* ================================================================ FOREIGN */
+  /* A conspiracy in their inner circle: who will listen, how far it has got, what the odds are. */
+  const LOYW = (v) => (v < 30 ? ['disaffected', 'bad'] : v < 48 ? ['wavering', 'warn'] : v < 68 ? ['reliable', ''] : ['devoted', 'good']);
+  function plotHtml(G, me, t) {
+    const Dp = ID.Diplomacy, Rg = ID.Regime;
+    if (ID.ideo(t).flags.noCoup) return '<div class="note">No coup is possible here: there is no officer corps to suborn, only assemblies.</div>';
+    if (!t.circle || !t.circle.length) return '';
+    const op = Dp.plotOp(me, t);
+    let h = '<div class="plot"><div class="plh"><b>Conspiracy</b><span class="dim">Back one of their own against the ' + esc(Rg.body(t).circle.toLowerCase()) + '</span></div>';
+    if (op) {
+      const f = Dp.plotFig(t, op.seat), odds = f ? Dp.plotOdds(G, me, t, f) : 0, prep = f ? Math.round(f.prep || 0) : 0, to = ID.Politics.coupIdeo ? ID.ideo(me).control.type === 'assembly' ? 'junta' : me.ideo : me.ideo;
+      h += '<div class="plrow on"><div><b>' + esc(op.name) + '</b><span class="dim"> · ' + esc(Rg.title(t, op.seat)) + '</span><div class="plbar"' + tip('<h5>Preparation ' + prep + '%</h5>Officers sounded out, units chosen, a radio station picked. It grows every month, faster where the regime is shaky and slower under political police.<hr>Every month there is a chance their police find it. If they do, your man is arrested and you are named.') + '><i style="width:' + prep + '%"></i></div>' +
+        '<span class="dim" style="font-size:13.5px">Ready ' + prep + '% · odds if you signalled today about <b class="' + (odds > 0.55 ? 'good' : odds < 0.35 ? 'bad' : 'warn') + '">' + Math.round(odds * 20) * 5 + '%</b> · ' + op.cost + ' gold a month</span></div></div>' +
+        '<div class="row" style="margin-top:6px">' +
+        btn('Give the signal', 'plotSignal', t.id, { cls: 'red', off: prep < 30 ? 'Too early: the conspiracy is not yet a third ready.' : '', tip: '<h5>Give the signal</h5>His units move on the ministries tonight. Odds about <b>' + Math.round(odds * 20) * 5 + '%</b>.<hr><span class="good">If it works:</span> ' + esc(op.name) + ' rules ' + esc(t.base) + (t.ideo === to ? '' : ' under ' + esc(ID.IDEOLOGIES[to].name)) + ', makes peace with you and ' + (me.bloc ? 'joins your bloc.' : 'signs a pact and a trade treaty.') + '<br><span class="bad">If it fails:</span> he is shot, relations −45, and no second attempt for four years.' }) +
+        btn('Pay the garrison <span>100 gold</span>', 'plotBoost', t.id, { cls: 'ghost', off: me.gold < 100 ? 'Needs 100 gold.' : (op.boostAt || -999) > G.tick - 180 ? 'Paid once this half-year already.' : '', tip: 'Preparation +20 at once. Money moving through the barracks raises the chance their police notice.' }) +
+        btn('Call it off', 'stopOp', me.ops.indexOf(op), { cls: 'ghost', tip: 'Withdraw quietly. Nothing is exposed.' }) + '</div>';
+    } else {
+      const cd = (me.cd['coup_' + t.id] || 0) > G.tick;
+      if (cd) h += '<p class="dim" style="font-size:13.5px">Your contacts there are lying low until ' + ID.dateOf(me.cd['coup_' + t.id]).short + '.</p>';
+      for (const f of t.circle) {
+        const open = Dp.plotOpen(me, t, f), why = Dp.plotBlock(G, me, t, f), lw = LOYW(f.loy), cost = Dp.plotCost(me, f);
+        h += '<div class="plrow"><div><b>' + esc(f.name) + '</b><span class="dim"> · ' + esc(Rg.title(t, f.seat)) + '</span><br><span style="font-size:13.5px"><span class="' + lw[1] + '">' + lw[0] + '</span>' + (f.amb > 64 ? ' · ambitious' : f.amb < 40 ? ' · modest' : '') + ' · believes in ' + esc(ID.IDEOLOGIES[f.lean].name) + (f.heir ? ' · the heir' : '') + '</span></div>' +
+          btn('Approach <span>' + cost + 'g</span>', 'plot', [t.id, f.seat], { cls: 'sm ' + (why ? 'ghost' : 'red'), off: why, tip: '<h5>Approach ' + esc(f.name) + '</h5>Openness to you: <b>' + Math.round(open) + '</b> of 100. Disloyal, ambitious men and those who share your convictions listen; contented ones report you.<hr>' + cost + ' gold now, then ' + Dp.opCost(G, me, 'coup') + ' a month while the conspiracy is prepared. The ' + esc(Rg.title(t, 'army').toLowerCase()) + ' is the best man to have: he commands the troops.' }) + '</div>';
+      }
+      h += '<p class="dim" style="font-size:13.5px;margin-top:4px">What your embassy knows of their inner circle. Loyalties are estimates.</p>';
+    }
+    return h + '</div>';
+  }
   function nationDetail(G, me, t) {
     const I = ID.ideo(t), Dp = ID.Diplomacy, d = ID.dipOf(G, me.id, t.id); let h = '';
     h += '<div class="row" style="margin-bottom:8px">' + btn('← All states', 'fnation', 0, { cls: 'sm ghost' }) + btn('Show on map', 'goto', t.capital, { cls: 'sm ghost' }) + '</div>';
@@ -250,7 +300,7 @@
     const funding = me.ops.findIndex((x) => x.type === 'fund' && x.target === t.id);
     const fc = Dp.opCost(G, me, 'fund'), cc = Dp.opCost(G, me, 'coup');
     o += funding >= 0 ? btn('Stop funding the movement', 'stopOp', funding, { cls: 'ghost' }) : btn('Fund a movement <span>' + fc + ' gold / month</span>', 'op', [t.id, 'fund'], { cls: 'ghost', off: me.ops.length >= 3 ? 'Three operations at most.' : '', tip: '<h5>Fund a movement</h5>Each month your money builds a movement for <b>' + esc(ID.ideo(me).name) + '</b> in three of their provinces. When it is strong and their stability is low, it rises; if it wins, the revolution counts as yours.<hr>Works better against a free press, worse against political police. It may be traced to you.' });
-    o += btn('Back a coup <span>' + cc + ' gold</span>', 'op', [t.id, 'coup'], { cls: 'ghost', off: ID.ideo(t).flags.noCoup ? 'There is no officer corps there to suborn.' : me.gold < cc ? 'Needs ' + cc + ' gold.' : (me.cd['coup_' + t.id] || 0) > G.tick ? 'Your contacts are lying low until ' + ID.dateOf(me.cd['coup_' + t.id]).short + '.' : '', tip: '<h5>Back a coup</h5>Pay officers to move. If they succeed the new regime ' + (ID.ideo(me).control.type === 'assembly' ? 'will be a junta — but one that owes you.' : 'takes your system.') + ' If it fails or is exposed, relations collapse.<hr>Their army’s loyalty: about <b>' + Math.round(t.fs.military / 10) * 10 + '</b>. The lower, the better your odds.' });
+    o += plotHtml(G, me, t);
     if (ID.ideo(me).flags.generalStrike) o += btn('Call a general strike <span>60 gold, 20 authority</span>', 'op', [t.id, 'strike'], { cls: 'ghost', tip: '<h5>General strike abroad</h5>Your federation calls their workers out. Industry stops for five months and stability falls. If their workers’ support is under 32 the strike is total and counts toward One Big Union.<hr>Their workers’ support: about <b>' + Math.round(t.fs.workers / 10) * 10 + '</b>.' });
     if ((t.civil && G.nations[t.civil].alive) || (t.civilOf && G.nations[t.civilOf].alive)) o += btn('Send arms and volunteers <span>40 gold, 5% of troops</span>', 'aid', t.id, { cls: 'ghost', tip: 'Help this side of the civil war. The other side will not forget.' });
     h += sec('Covert', '<div class="col">' + o + '</div>');
@@ -272,7 +322,7 @@
     let bh = '';
     for (const bl of G.blocs) { if (!bl || !bl.members.length) continue; bh += '<div class="card"><b>' + esc(bl.name) + '</b>' + (n.bloc === bl.id ? ' <span class="tag" style="background:var(--olive)">yours</span>' : '') + '<br><span style="font-size:14px">' + bl.members.map((m) => (m === bl.leader ? '<b>' : '') + esc(G.nations[m].base) + (m === bl.leader ? '</b>' : '')).join(', ') + '</span></div>'; }
     h += sec('Blocs', bh || '<p class="dim">No blocs have formed yet.</p>', 'leaders in bold');
-    if (n.ops.length) h += sec('Your operations', n.ops.map((o, k) => '<div class="row nw" style="margin-bottom:5px"><span style="flex:1">Funding a movement in <b>' + esc(G.nations[o.target].base) + '</b> · ' + o.cost + '/mo</span>' + btn('Stop', 'stopOp', k, { cls: 'sm ghost' }) + '</div>').join(''));
+    if (n.ops.length) h += sec('Your operations', n.ops.map((o, k) => '<div class="row nw" style="margin-bottom:5px"><span style="flex:1">' + (o.type === 'coup' ? 'Conspiracy around <b>' + esc(o.name) + '</b> in <b>' + esc(G.nations[o.target].base) + '</b> · ' + Math.round((ID.Diplomacy.plotFig(G.nations[o.target], o.seat) || {}).prep || 0) + '% ready' : 'Funding a movement in <b>' + esc(G.nations[o.target].base) + '</b>') + ' · ' + o.cost + '/mo</span>' + (o.type === 'coup' ? btn('Open', 'focus', o.target, { cls: 'sm ghost' }) : '') + btn('Stop', 'stopOp', k, { cls: 'sm ghost' }) + '</div>').join(''));
     h += sec('Your standing', kv([['Threat', '<span class="' + (n.threat > 50 ? 'bad' : n.threat > 25 ? 'warn' : '') + '">' + Math.round(n.threat) + '</span>', 'How dangerous the world thinks you are. Conquest, wars without cause, broken pacts and atomic weapons raise it; it fades slowly. Past about 55, coalitions form against you.'], ['Claims held', n.claims.length ? Math.round(ID.claimShare(G, n) * 100) + '% of ' + n.claims.length + ' provinces' : '<span class="dim">none</span>', 'Provinces your regime claims. Holding a claim on a neighbour justifies war.']]));
     return h;
   };
@@ -294,6 +344,7 @@
     const top = ID.alive(G).sort((a, b) => (b.a.power || 0) - (a.a.power || 0)).slice(0, 8);
     h += sec('Great powers', '<table class="t"><tr><th>State</th><th>System</th><th class="n">Land</th><th class="n">Industry</th><th class="n">Troops</th></tr>' + top.map((o) => '<tr class="click" data-act="' + (o === n ? 'goto' : 'focus') + '" data-a="' + (o === n ? o.capital : o.id) + '"><td>' + R.swatch(o) + (o === n ? '<b>' : '') + esc(o.base) + (o === n ? '</b>' : '') + '</td><td>' + UI.ideoTag(o.ideo) + '</td><td class="n">' + Math.round((o.tiles / G.landCount) * 100) + '%</td><td class="n">' + Math.round(o.ind) + '</td><td class="n">' + ID.fmtPop(o.troops) + '</td></tr>').join('') + '</table>');
     h += sec('The age', kv([['Era', ID.ERAS[ID.eraOf(G.tick)].name, esc(ID.ERAS[ID.eraOf(G.tick)].desc)], ['States', G.stats.count + ''], ['History', G.historical ? 'historical storyline' : 'free', G.historical ? 'Scripted events of the century arrive on their dates; other countries follow their historical programmes.' : 'Nothing is scripted.'], ['World tension', Math.round(G.world.tension) + ''], ['World economy', G.world.depression > 0 ? '<span class="bad">the Great Slump</span>' : G.world.depressionDone ? 'recovered' : 'calm']]));
+    h += sec('The World Dispatch', UI.paperCard ? UI.paperCard(G) : '');
     h += sec('Chronicle', '<div class="chron">' + G.chronicle.slice(-40).reverse().map((c) => '<div><span>' + ID.dateOf(c.t).short + '</span><span>' + esc(c.text) + '</span></div>').join('') + '</div>');
     return h;
   };
@@ -343,6 +394,9 @@
         '<li><b>The pool</b> refills toward your mobilisation level. Soldiers are taken from the workforce.</li>' +
         '<li><b>To attack</b>, be at war, select the enemy on the map, set the Commit slider, pick a style, press Attack. The committed troops leave the pool and eat into enemy land tile by tile.</li>' +
         '<li><b>Each tile costs more</b> where the defender’s pool is dense over its territory, on rough ground, across rivers, in cities and under a fortress.</li>' +
+        '<li><b>Supply.</b> Land joined to your capital is supplied by land. Land across the water is supplied by sea, through a port or the beachhead a landing made. Land with neither is cut off, and with an enemy beside it surrenders within weeks. The Supply map (B) shows all three.</li>' +
+        '<li><b>Landings.</b> Select an enemy you share no border with and press Land, or click a tile on their coast. Sea power (ports, naval programmes, technology) decides how much of the convoy their navy sinks and how costly the beach is.</li>' +
+        '<li><b>Size.</b> A sprawling state (over 7% of the world’s land) is overstretched: less output, weaker attacks, more unrest. A small one (under 3.5%) is run well: more efficiency, science, trade and defence. A much stronger attacker meets a whole nation in arms: the weaker side defends up to 35% better.</li>' +
         '<li><b>What you commit cannot defend.</b> An empty pool makes every tile of yours cheap.</li>' +
         '<li><b>Objectives.</b> Select an enemy city or capital and press <i>Make this the objective</i>. The offensive bends into a spearhead toward it: 10% faster, a little costlier on its flanks, and good at cutting off pockets. When it falls the enemy loses troops, stability and heart, and your attack surges for three weeks.</li>' +
         '<li><b>Posture</b> (on the war bar): Offensive, Balanced, Dig in or Elastic defence. An elastic defence gives ground slowly and makes every enemy tile expensive. Changing posture costs twenty days of reorganisation.</li>' +

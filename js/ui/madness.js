@@ -9,7 +9,7 @@
   const UI = ID.UI, esc = ID.esc, clamp = ID.clamp;
   const M = (ID.Madness = {});
 
-  M.kind = (n) => (n && n.ideo === 'absmon' ? 'crown' : n && n.ideo === 'personalist' ? 'leader' : null);
+  M.kind = (n) => (n && n.ideo === 'absmon' ? 'crown' : n && n.ideo === 'personalist' ? 'leader' : n && ID.ideo(n) && ID.ideo(n).banner ? ID.ideo(n).banner : null);
   M.level = function (G, n) {
     const k = M.kind(n); if (!k || !n.alive) return 0;
     let v = (k === 'crown' ? 22 : 30) + n.auth * 0.2 + (k === 'leader' ? n.charisma : n.tradition) * 0.15 + Math.min(20, n.age / 12);

@@ -50,7 +50,7 @@
     ['parl', 'Parliamentary government', 'Ministers answer to the Storting and leave when it says so.', [['nq', -12], ['mandate', 8], ['mod', 'eff', 0.03, PERM, 'Parliamentary government']]],
     ['council', 'The king’s council of state', 'The king chairs his cabinet, and chooses it.', [['nq', 12], ['auth', 15], ['mod', 'stab', 2, PERM, 'King’s council']]],
     ['fish', 'The fishermen’s insurance', 'Every boat insured by the state against the winter sea.', [['nq', -5], ['mod', 'food', 0.05, PERM, 'Fishermen’s insurance'], ['sup', 'peasants', 5]]],
-    ['navy', 'The coastal fleet', 'Torpedo boats in every fjord and a battleship for the capital.', [['nq', 6], ['mod', 'def', 0.08, PERM, 'Coastal fleet']]],
+    ['navy', 'The coastal fleet', 'Torpedo boats in every fjord and a battleship for the capital.', [['nq', 6], ['mod', 'def', 0.08, PERM, 'Coastal fleet'], ['mod', 'navy', 0.5, PERM, 'Coastal fleet']]],
     ['people', 'The people’s kingdom', 'A king on a bicycle, a parliament that governs and a welfare state that works.', [['nq', -15], ['mod', 'stab', 4, PERM, 'People’s kingdom'], ['mod', 'ls', 2, PERM, 'People’s kingdom']]],
     ['crown', 'The crown of the north', 'The king leads, the nation follows, and the north is his.', [['nq', 15], ['mod', 'legit', 5, PERM, 'Crown of the north'], ['mod', 'def', 0.06, PERM, 'Crown of the north'], ['tradition', 8]]],
   ]);

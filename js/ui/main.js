@@ -129,7 +129,7 @@
       }
     }
     if (G.cut[i] === 1) h += '<br><b class="bad">Cut off from supply</b>';
-    else if (G.cut[i] === 2) h += '<br><span class="warn">Supplied by sea</span>';
+    else if (G.cut[i] === 2) h += '<br><span class="warn">Supplied by sea' + (ID.Combat.isBeach(G, i) ? ': this is the beachhead' : '') + '</span>';
     if (n === me && !G.bld[i]) h += '<br><span class="dim">Click to build here.</span>';
     else if (n && n !== me && ID.atWar(G, me.id, n.id)) h += '<br><span class="dim">Click to select; double-click to attack.</span>';
     else if (!n) h += '<br><span class="dim">Double-click to expand into it.</span>';

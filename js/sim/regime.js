@@ -52,6 +52,7 @@
         n.flags.cast = 1;
         n.circle = N.cast.map((c) => castFig(G, c));
         const L = N.leader; n.leader.name = L[0]; n.leader.age = L[1]; n.leader.traits = L[2].slice(); if (L[3]) n.leader.title = L[3];
+        if (N.mods) for (const m of N.mods) ID.addMod(n, m[0], m[1], m[2], m[3]);
       } else n.circle = R().SEATS.map((s) => Rg.newFig(G, n, s));
       n.circleIdeo = n.ideo;
     }
@@ -106,11 +107,23 @@
       if (f.seat === 'ideology' && n.sig != null) n.sig = c100(n.sig + 0.25 * Rg.scale(f));
       if (f.lean !== n.ideo && n.drift[f.lean] != null) n.drift[f.lean] = c100(n.drift[f.lean] + 0.06 * f.comp);
     }
+    // size: a sprawling state is hard to run, a small one can be run well (refreshed every January)
+    if (n.a.sizeYr !== ID.yearOf(G.tick)) Rg.sizeMods(G, n);
     // the line set by the last session
     if (line) { for (const k in line.mods) ADD(m, k, line.mods[k]); if (line.sig && n.sig != null) n.sig = c100(n.sig + line.sig); }
     if (G.tick >= n.sess.next) Rg.convene(G, n);
     Rg.nqMonth(G, n, m);
     if (!isP) Rg.aiMonth(G, n);
+  };
+
+  Rg.SIZE = { big: 0.07, small: 0.035 };
+  Rg.sizeMods = function (G, n) {
+    n.a.sizeYr = ID.yearOf(G.tick);
+    n.mods = n.mods.filter((m) => m.label !== 'Overstretched' && m.label !== 'Small and well run');
+    if (n.civilOf) return;
+    const sh = n.tiles / Math.max(1, G.landCount);
+    if (sh > Rg.SIZE.big) { const k = Math.min(1, (sh - Rg.SIZE.big) / 0.13); ID.addMod(n, 'prod', -0.12 * k, 13, 'Overstretched'); ID.addMod(n, 'eff', -0.05 * k, 13, 'Overstretched'); ID.addMod(n, 'unrest', 4 * k, 13, 'Overstretched'); ID.addMod(n, 'atk', -0.08 * k, 13, 'Overstretched'); }
+    else if (sh < Rg.SIZE.small) { const k = (Rg.SIZE.small - sh) / Rg.SIZE.small; ID.addMod(n, 'eff', 0.06 * k, 13, 'Small and well run'); ID.addMod(n, 'sci', 0.12 * k, 13, 'Small and well run'); ID.addMod(n, 'def', 0.08 * k, 13, 'Small and well run'); ID.addMod(n, 'trade', 0.06 * k, 13, 'Small and well run'); }
   };
 
   /* ---------------------------------------------------------------- plots and coups from within */
@@ -132,6 +145,7 @@
       const turn = f.lean !== n.ideo && ID.IDEOLOGIES[f.lean] && !parl && G.rng.chance(0.6);
       ID.chron(G, 'coup', f.name + ' ' + (parl ? 'topples ' : 'overthrows ') + old + ' of ' + n.name + ' from inside the ' + B + '.', n.id);
       if (isP || ID.isMajor(G, n)) ID.headline(G, { kicker: parl ? 'A palace revolt' : 'Coup in the ' + B, title: f.name + ' takes power', sub: old + ' is ' + (parl ? 'voted out by his own party' : 'arrested at his desk') + (turn ? '. The new man brings his own ideas with him.' : '.'), a: n.id, tone: 'rev' });
+      if (ID.Press && !turn) ID.Press.palace(G, n, { name: f.name, title: 'the post of ' + Rg.title(n, f.seat).toLowerCase() }, true, null);
       if (turn) ID.Politics.changeIdeology(G, n, f.lean, 'coup');
       else { n.stab -= parl ? 4 : 8; if (f.lean !== n.ideo && n.drift[f.lean] != null) n.drift[f.lean] = c100(n.drift[f.lean] + 25); }
     } else {
@@ -139,6 +153,7 @@
       n.stab -= 4; n.grievance = c100(n.grievance + 6); n.a.fear = G.tick + 360;
       if (isP) ID.headline(G, { kicker: 'A plot uncovered', title: f.name + ' has failed', sub: 'The ' + Rg.title(n, f.seat).toLowerCase() + ' moved against the government and lost. The rest of the ' + B.toLowerCase() + ' is very quiet.', a: n.id, tone: 'pol' });
       else if (ID.isMajor(G, n)) ID.news(G, 'A plot inside the ' + B + ' of ' + n.name + ' fails; ' + f.name + ' is arrested.', 'pol', n.id);
+      if (ID.Press) ID.Press.palace(G, n, { name: f.name }, false, null);
     }
   };
   /* The figure takes the top job; the seat is filled anew. */
@@ -186,6 +201,7 @@
     if (!ai) { const w = Rg.block(G, n, 'purge', seat); if (w) return w; }
     const how = Rg.canPurge(n), c = Rg.costOf(n, 'purge', f);
     n.auth = Math.max(0, n.auth - (c.auth || 0));
+    if (f.backer) { const b = G.nations[f.backer]; f.backer = 0; if (b && b.alive && ID.Diplomacy.plotOp(b, n)) ID.Diplomacy.plotExposed(G, b, n, null); }
     const fac = R().seats[seat].fac;
     n.sm[fac] -= how === 'purge' ? 6 : 3;
     if (how === 'purge') { n.grievance = c100(n.grievance + 6); n.a.fear = G.tick + 540; n.stab -= 2; }
@@ -203,6 +219,7 @@
     if (!ai) { const w = Rg.block(G, n, 'win', seat); if (w) return w; }
     const c = Rg.costOf(n, 'win', f);
     n.gold -= c.gold; f.loy = c100(f.loy + 22); f.amb = c100(f.amb + 4); f.plot = Math.max(0, f.plot - 3); f.cd = G.tick + 360; n.corr = c100((n.corr || 0) + 1);
+    if (f.backer) { const b = G.nations[f.backer]; f.backer = 0; f.prep = 0; if (b && b.alive && ID.Diplomacy.plotOp(b, n)) { ID.Diplomacy.stopOp(G, b, b.ops.indexOf(ID.Diplomacy.plotOp(b, n))); if (b.id === G.player) ID.news(G, 'Your man in ' + n.name + ', ' + f.name + ', has been bought back by his own government.', 'bad', b.id, n.id); } }
     if (n.id === G.player) { ID.news(G, f.name + ' is won over: a dacha, a pension and a seat at the top table.', 'pol', n.id); G.uiDirty = true; }
     return '';
   };
@@ -231,6 +248,7 @@
     if (!skipNow) ID.Events.applyFx(G, n, L.now, {});
     for (const f of n.circle) { if (f.lean === L.lean) f.loy = c100(f.loy + 12); else if (f.lean !== n.ideo) f.loy = c100(f.loy - 6); }
     if (ID.isMajor(G, n) && n.id !== G.player) ID.news(G, Rg.sessName(n) + ' of ' + n.name + ' adopts a new line: ' + L.name.toLowerCase() + '.', 'pol', n.id);
+    if (ID.Press) ID.Press.line(G, n, Rg.sessName(n), L);
   };
   Rg.convokeBlock = (G, n) => (n.auth < 25 ? 'Needs 25 authority.' : G.tick - (n.sess.at || 0) < 360 ? 'The last session was less than a year ago.' : '');
 
@@ -314,7 +332,7 @@
   const E = ID.EVENT_DEFS;
   E.push({ id: 'rg_plot', sys: 1, tone: 'bad', sfx: 'alarm',
     title: (n, G, c) => 'A plot in the ' + Rg.body(n).circle,
-    text: (n, G, c) => { const f = Rg.fig(n, c.seat); const nm = f ? f.name : c.name; return 'Your people have a list of names, a date and a meeting place. At the head of the list is ' + nm + ', ' + Rg.title(n, c.seat) + '. ' + (f && f.lean !== n.ideo ? 'He wants ' + ID.IDEOLOGIES[f.lean].name + ', and he has friends who want it too.' : 'He wants your chair.'); },
+    text: (n, G, c) => { const f = Rg.fig(n, c.seat); const nm = f ? f.name : c.name; return 'Your people have a list of names, a date and a meeting place. At the head of the list is ' + nm + ', ' + Rg.title(n, c.seat) + '. ' + (c.foreign && G.nations[c.foreign] ? 'The money comes from ' + G.nations[c.foreign].name + '. ' : '') + (f && f.lean !== n.ideo ? 'He wants ' + ID.IDEOLOGIES[f.lean].name + ', and he has friends who want it too.' : 'He wants your chair.'); },
     opts: (G, n, c) => {
       const f = Rg.fig(n, c.seat), how = Rg.canPurge(n), out = [];
       if (!f) return [{ label: 'The danger has passed', fx: [] }];

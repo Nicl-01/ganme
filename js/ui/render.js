@@ -332,12 +332,23 @@
     // the player's objectives: a target ring with a pennant
     const me = G.nations[G.player];
     if (me && me.objs) for (const k in me.objs) {
-      const t = me.objs[k]; if (G.owner[t] !== +k) continue;
+      const t = me.objs[k]; if (G.owner[t] !== +k || !ID.atWar(G, me.id, +k)) continue;
       const X = sx((t % W) + 0.5), Y = sy(((t / W) | 0) + 0.5), r = Math.max(9, z * 2.2), pulse = 0.5 + 0.5 * Math.sin(R.t * 4);
       ctx.strokeStyle = css(RED, 0.95); ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(X, Y, r, 0, 6.3); ctx.stroke();
       ctx.lineWidth = 1.5; ctx.beginPath(); ctx.arc(X, Y, r * (1.35 + 0.25 * pulse), 0, 6.3); ctx.stroke();
       ctx.beginPath(); ctx.moveTo(X - r * 1.7, Y); ctx.lineTo(X - r * 0.5, Y); ctx.moveTo(X + r * 0.5, Y); ctx.lineTo(X + r * 1.7, Y); ctx.moveTo(X, Y - r * 1.7); ctx.lineTo(X, Y - r * 0.5); ctx.moveTo(X, Y + r * 0.5); ctx.lineTo(X, Y + r * 1.7); ctx.stroke();
       ctx.fillStyle = css(RED); ctx.font = '700 11px "Barlow Condensed", sans-serif'; ctx.textAlign = 'center'; ctx.fillText('OBJECTIVE', X, Y - r * 1.9);
+    }
+    // beachheads that are carrying a pocket's supply
+    if (G.beach && G.beach.length) for (const b of G.beach) {
+      if (G.owner[b.i] !== b.o || G.cut[b.i] !== 2) continue;
+      if (b.o !== G.player && !(me && ID.atWar(G, me.id, b.o))) continue;
+      const X = sx((b.i % W) + 0.5), Y = sy(((b.i / W) | 0) + 0.5); if (X < -20 || Y < -20 || X > cw + 20 || Y > ch + 20) continue;
+      const r = Math.max(5, z * 1.1), mine = b.o === G.player;
+      ctx.fillStyle = css(mine ? RED : INK, 0.95); ctx.strokeStyle = css(PAPER, 0.95); ctx.lineWidth = 1.5;
+      ctx.beginPath(); ctx.moveTo(X, Y - r * 1.5); ctx.lineTo(X + r, Y); ctx.lineTo(X, Y + r * 1.5); ctx.lineTo(X - r, Y); ctx.closePath(); ctx.fill(); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(X - r * 0.5, Y); ctx.lineTo(X + r * 0.5, Y); ctx.moveTo(X, Y - r * 0.7); ctx.lineTo(X, Y + r * 0.7); ctx.stroke();
+      if (z >= 5) { ctx.fillStyle = css(mine ? RED : INK); ctx.font = '700 10px "Barlow Condensed", sans-serif'; ctx.textAlign = 'center'; ctx.fillText('BEACHHEAD', X, Y - r * 1.9); }
     }
     // capitals
     for (let k = 1; k < G.nations.length; k++) {

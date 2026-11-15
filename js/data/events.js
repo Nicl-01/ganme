@@ -606,8 +606,9 @@
     show: (n) => !!I(n).flags.succession && !n.flags.heir, fx: [['flag', 'heir'], ['sup', 'military', -5], ['sup', 'bureaucracy', -4]] });
   dec({ id: 'build_missile', name: 'Build a missile', desc: 'A conventional missile for your silos.', cost: { gold: 120 }, cd: 2, decree: false,
     show: (n) => n.nb[5] > 0, fx: [['fn', (G, n) => { n.missiles++; }], ['note', 'Missiles +1']] });
-  dec({ id: 'build_nuke', name: 'Build an atomic warhead', desc: 'Needs military technology 6. Using it will change how the whole world sees you.', cost: { gold: 500 }, cd: 6, decree: false,
-    show: (n) => n.nb[5] > 0 && n.tech.mil >= 6, fx: [['fn', (G, n) => { n.nukes++; }], ['note', 'Atomic warheads +1'], ['threat', 6]] });
+  dec({ id: 'build_nuke', name: 'Build an atomic warhead', desc: 'Needs military technology 6. A warhead takes a year and a half of the whole atomic industry’s work, and each silo can hold two. Using one will change how the whole world sees you.', cost: { gold: 900 }, cd: 18, decree: false,
+    show: (n) => n.nb[5] > 0 && n.tech.mil >= 6, can: (n) => (n.nukes >= n.nb[5] * 2 ? 'Your silos are full: two warheads each.' : ''),
+    fx: [['fn', (G, n) => { n.nukes++; n.cnt.nukesBuilt = (n.cnt.nukesBuilt || 0) + 1; }], ['note', 'Atomic warheads +1'], ['threat', 8]] });
   dec({ id: 'hire_mercs', name: 'Hire companies', desc: 'Buy soldiers on the open market.', cost: { gold: 100 }, cd: 1, decree: false,
     show: (n) => !!ID.RECRUIT[n.laws.recruit].hire, can: (n) => (n.troops >= n.pop * ID.maxMob(n) ? 'You are at your mobilisation ceiling.' : ''),
     fx: [['fn', (G, n) => { n.troops = Math.min(n.pop * ID.maxMob(n), n.troops + Math.max(40, n.pop * 0.008)); }], ['note', 'Troops arrive at once']] });

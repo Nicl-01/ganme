@@ -32,6 +32,7 @@
     for (const b in ID.FOCUS.nations) { nat[b] = {}; for (const f of ID.FOCUS.nations[b]) { all[f.id] = f; nat[b][f.id] = f; f.tree = b; } }
     for (const k in ID.FOCUS.families || {}) for (const f of ID.FOCUS.families[k]) { all[f.id] = f; f.tree = 'fam:' + k; }
     for (const b in ID.FOCUS.projects || {}) for (const f of ID.FOCUS.projects[b]) { all[f.id] = f; f.tree = b; if (nat[b]) nat[b][f.id] = f; }
+    for (const k in ID.FOCUS.secret || {}) for (const f of ID.FOCUS.secret[k]) { all[f.id] = f; f.tree = 'secret:' + k; }
   }
   /* Names in family trees carry {A} and {N}: the state's adjective and name. */
   Fo.sub = (t, n) => (t ? String(t).replace(/\{A\}/g, n.adj).replace(/\{N\}/g, n.base) : '');
@@ -47,6 +48,7 @@
     else { const fam = ID.ideo(n).family, L = ID.FOCUS.families && ID.FOCUS.families[fam]; if (L) out.push({ key: 'nat', name: n.adj + ' programme', fam, list: L }); }
     const IT = ID.FOCUS.ideos && ID.FOCUS.ideos[n.ideo];
     if (IT) { if (!all) index(); out.push({ key: 'ideo', name: ID.ideo(n).name, list: IT }); }
+    const sec = ID.Secret && ID.Secret.tree(n); if (sec) { if (!all) index(); out.push(sec); }
     out.push({ key: 'gen', name: 'General programme', list: ID.FOCUS.general });
     if (ID.FOCUS.crisis) { if (!all) index(); out.push({ key: 'cri', name: 'Emergency measures', list: ID.FOCUS.crisis }); }
     return out;
@@ -73,6 +75,7 @@
     }
     if (f.excl) for (const x of f.excl) if (p.done[x] != null) return 'Ruled out: you chose ' + Fo.nm(Fo.def(x), n) + '.';
     if (f.dest && n.destiny && !n.destiny.lapsed && n.destiny.id !== f.id) return 'You have already reached a destiny: ' + n.destiny.name + '.';
+    if (n.destiny && !n.destiny.lapsed && !f.dest && !f.secret) for (const x of f.fx || []) if (x[0] === 'ideology' && x[1] !== n.destiny.ideo) return 'Ruled out: the ' + n.destiny.name + ' will not unmake itself.';
     if (f.req) { const miss = f.req.filter((x) => p.done[x] == null); if (miss.length) return 'Needs ' + names(miss, n) + '.'; }
     if (f.reqAny && !f.reqAny.some((x) => p.done[x] != null)) return 'Needs one of: ' + names(f.reqAny, n) + '.';
     if (f.year && ID.yearOf(G.tick) < f.year) return 'Not before ' + f.year + '.';
@@ -99,6 +102,7 @@
     if (p.cur === f.id) return 'cur';
     if (p.done[f.id] != null && !f.repeat) return 'done';
     if (f.excl && f.excl.some((x) => p.done[x] != null)) return 'excl';
+    if (n.destiny && !n.destiny.lapsed && !f.dest && !f.secret && (f.fx || []).some((x) => x[0] === 'ideology' && x[1] !== n.destiny.ideo)) return 'excl';
     return Fo.block(G, n, f, true) ? 'locked' : 'avail';
   };
   Fo.available = function (G, n) {
@@ -166,6 +170,7 @@
     ID.addEpithet(G, n, n.destiny.epithet);
     ID.headline(G, { kicker: 'Destiny · ' + old, title: n.destiny.name, sub: '“' + S(d.quote) + '” — ' + S(d.by), a: n.id, tone: n.id === G.player ? 'good' : 'pol' });
     ID.chron(G, 'destiny', old + ' becomes ' + n.destiny.name + ': ' + n.destiny.title + '.', n.id);
+    if (ID.Press) ID.Press.destiny(G, n, old, { art: d.art, quote: S(d.quote) });
     if (n.id === G.player && !G.autoPlayer && !G.headless) { (G.superq = G.superq || []).push({ kind: 'destiny', nation: n.id, focus: f.id }); G.uiDirty = true; }
     if (!G.headless) G.dirtyAll = true;
   };
@@ -404,6 +409,7 @@
     subvert: (G, n, f) => subvert(G, n, tgt(G, f[1]), f[2]),
     civilwar: (G, n, f) => civilWarFx(G, n, f[1], f[2] || 0.4),
     protector: (G, n) => protector(G, n),
+    note2: (G, n, f) => D().note(G, n, tgt(G, f[1]), f[2]),
     subvertNb: (G, n, f) => { for (const k in G.border[n.id] || {}) { const t = G.nations[+k]; if (t && t.alive && t !== n && !ID.sameBloc(G, n.id, t.id)) subvert(G, n, t, f[1]); } },
   };
   Fo.DESC = {
@@ -420,6 +426,7 @@
     civilwar: (f) => ({ t: 'Civil war against ' + ID.IDEOLOGIES[f[1]].name, good: false }),
     protector: () => ({ t: 'Alliance with a friendly great power', good: true }),
     subvertNb: () => ({ t: 'Agitation in every neighbouring state', good: true }),
+    note2: (f) => ({ t: { treaty: 'Proposes a treaty to ', cede: 'Demands provinces from ', bloc: 'Invites into our alliance: ', aid: 'Offers aid to ', toll: 'Names a toll for ' }[f[2]] + f[1], good: null }),
   };
 
   /* ---------------------------------------------------------------- the storyline */
@@ -446,7 +453,7 @@
       if (!ok) { G.story.done[b.id] = 2; continue; }
       if (b.player) { const n = G.nations[G.player]; if (n && n.alive && !G.autoPlayer && !G.headless && (!b.pcond || b.pcond(G, n))) ID.Events.queue(G, n, b.id, {}); else G.story.done[b.id] = 2; }
       else if (b.nation) { const n = ID.byBase(G, b.nation); if (n) ID.Events.queue(G, n, b.id, {}); else G.story.done[b.id] = 2; }
-      else { b.run(G); if (b.sup && !G.headless) (G.superq = G.superq || []).push({ kind: 'story', id: b.id }); }
+      else { b.run(G); if (ID.Press) ID.Press.beat(G, b); if (b.sup && !G.headless) (G.superq = G.superq || []).push({ kind: 'story', id: b.id }); }
     }
   };
   St.upcoming = function (G, k) {

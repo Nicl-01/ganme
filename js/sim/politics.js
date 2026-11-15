@@ -254,6 +254,7 @@
     const verb = { election: 'votes in', reform: 'reforms itself into', drift: 'slides into', coup: 'falls to a coup: now', revolution: 'is overturned by revolution: now', imposed: 'has a new regime imposed:', succession: 'changes hands:' }[mode];
     ID.news(G, oldName + ' ' + verb + ' ' + I.name + '.', 'rev', n.id);
     ID.chron(G, 'ideology', oldName + ' ' + verb + ' ' + I.name + ' (' + n.name + ').', n.id);
+    if (ID.Press) ID.Press.regime(G, n, oldName, old, mode, why0, sponsor);
     const HK = { revolution: 'Revolution', coup: 'Coup d’état', election: 'Election', reform: 'Reform', drift: 'A new order', imposed: 'Occupation', succession: 'Succession' };
     if (n.id === G.player) ID.headline(G, { kicker: HK[mode] || 'A new order', title: I.name, sub: oldName + ' is now ' + n.name + '. The rules have changed.', a: n.id, tone: mode === 'election' || mode === 'reform' ? 'pol' : 'rev' });
     else if ((mode === 'revolution' || mode === 'coup') && ID.isMajor(G, n)) { const why = why0; ID.headline(G, { kicker: HK[mode], title: n.base + ' falls', sub: oldName + ' is overthrown' + (why ? ' after ' + why : '') + '. ' + n.name + ' is proclaimed under ' + I.name + '.', a: n.id, tone: 'rev' }); }
@@ -289,7 +290,8 @@
   /* ---------------------------------------------------------------- coups */
   P.coupOdds = function (G, n, backed) {
     const sec = ID.LAWS.security.opts[n.laws.security];
-    return clamp(0.35 + (50 - n.fs.military) / 100 + (50 - n.stab) / 150 + (50 - n.legit) / 150 - sec.detect * 0.2 + (backed ? 0.1 : 0), 0.08, 0.92);
+    const base = clamp(0.35 + (50 - n.fs.military) / 100 + (50 - n.stab) / 150 + (50 - n.legit) / 150 - sec.detect * 0.2 + (backed ? 0.1 : 0), 0.08, 0.92);
+    return n.a.coupBoost && n.a.coupAt != null && G.tick - n.a.coupAt < 90 ? Math.max(base, n.a.coupBoost) : base;
   };
   P.coupIdeo = function (G, n, backer) {
     if (backer && G.nations[backer]) { const bi = G.nations[backer].ideo; if (ID.IDEOLOGIES[bi].control.type !== 'assembly') return bi; }
@@ -302,7 +304,7 @@
     n.a.coupAt = G.tick;
     if (n.id === G.player) { ID.Events.queue(G, n, 'coup', { backer: backer || 0 }); return; }
     if (G.rng.chance(P.coupOdds(G, n, backer))) P.changeIdeology(G, n, P.coupIdeo(G, n, backer), 'coup', backer);
-    else { n.stab -= 8; n.sm.military += 12; n.flags.coupSurvived = 1; ID.news(G, 'A coup attempt in ' + n.name + ' fails.', 'pol', n.id); }
+    else { n.stab -= 8; n.sm.military += 12; n.flags.coupSurvived = 1; ID.news(G, 'A coup attempt in ' + n.name + ' fails.', 'pol', n.id); if (ID.Press) ID.Press.coupFails(G, n, backer); }
   };
 
   /* ---------------------------------------------------------------- uprisings and civil war */
@@ -374,6 +376,7 @@
     for (let p = 1; p < G.provinces.length; p++) { const Pr = G.provinces[p]; if (Pr.owner === n.id) Pr.oppStr *= 0.5; }
     ID.news(G, 'CIVIL WAR in ' + n.name + ': ' + R.name + ' is proclaimed and holds ' + Math.round(share * 100) + '% of the country.', 'rev', n.id, R.id);
     ID.chron(G, 'civilwar', 'Civil war splits ' + n.name + '. The rebels proclaim ' + R.name + '.', n.id, R.id);
+    if (ID.Press) ID.Press.civil(G, n, R, share, P.troubleOf(G, n), sponsor);
     if (n.id === G.player || ID.isMajor(G, n)) { const why = P.troubleOf(G, n); ID.headline(G, { kicker: 'Civil war', title: n.base + ' divided', sub: (why && n.id !== G.player ? 'After ' + why + ', ' : '') + R.name + ' is proclaimed and holds ' + Math.round(share * 100) + '% of the country.', a: n.id, b: R.id, tone: 'rev' }); }
     for (const p of provs) ID.fx(G, 'revolt', G.provinces[p].center, { col: I.color });
     ID.sfx(G, 'revolt');
@@ -725,6 +728,7 @@
     if (I.flags.softSuccession) { n.tradition = c100(n.tradition + 3); ID.news(G, 'The monarch of ' + n.name + ' dies; ' + n.leader.name + ' is crowned.', 'pol', n.id); return; }
     const prepared = n.flags.heir ? 1 : 0;
     ID.news(G, old.title + ' ' + old.name + ' of ' + n.name + ' is dead.', 'pol', n.id);
+    if (ID.Press) ID.Press.death(G, n, (old.title + ' ' + old.name).trim() + ' of ' + n.name, prepared);
     ID.chron(G, 'succession', old.title + ' ' + old.name + ' of ' + n.name + ' dies after ' + Math.round(n.age / 12) + ' years in power.', n.id);
     ID.logGrief(n, G.tick, 'The ruler died' + (prepared ? ' with a named heir.' : ' with no agreed successor.'));
     n.flags.heir = 0;

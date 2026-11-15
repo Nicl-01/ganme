@@ -194,6 +194,8 @@
       G.era = era;
       if (G.tick > 0) { ID.news(G, 'A NEW ERA: the ' + ID.ERAS[era].name + ' begins. ' + ID.ERAS[era].desc, 'era'); ID.headline(G, { kicker: ID.ERAS[era].from + '', title: 'The ' + ID.ERAS[era].name, sub: ID.ERAS[era].desc, tone: 'era' }); ID.chron(G, 'world', 'The ' + ID.ERAS[era].name + ' begins.'); ID.sfx(G, 'era'); }
     }
+    if (ID.Press) ID.Press.month(G);
+    if (ID.Secret) ID.Secret.month(G);
     if (G.challengeMods) G.challengeMods(G);
     if (G.tick % 360 === 0) { V.yearly(G); G.wantAutosave = true; }
     if (!G.headless) G.uiDirty = true;
@@ -224,7 +226,7 @@
       prov: G.provinces.slice(1).map((P) => [P.core, Math.round(P.unrest * 10) / 10, P.opp, Math.round(P.oppStr * 10) / 10, Math.round(P.integ), P.lastOwner, P.sponsor]),
       attacks: G.attacks.map((a) => ({ id: a.id, from: a.from, to: a.to, troops: a.troops, committed: a.committed, style: a.style, amphib: a.amphib, taken: a.taken })),
       boats: G.boats, missiles: G.missiles, builds: G.builds, dip: G.dip, blocs: G.blocs, news: G.news.slice(-60), chronicle: G.chronicle, world: G.world, flags: G.flags,
-      evq: G.evq, tray: G.tray || [], votes: G.votes, nextId: G.nextId, over: G.over, tut: G.tut, offers: G.offers || [], shock: G.shock || [], historical: !!G.historical, story: G.story || null,
+      evq: G.evq, tray: G.tray || [], votes: G.votes, nextId: G.nextId, over: G.over, tut: G.tut, offers: G.offers || [], shock: G.shock || [], historical: !!G.historical, story: G.story || null, beach: G.beach || [], press: G.press || null,
     };
     return JSON.stringify(o, (k, v) => (k === 'dem' || k === 'lsHist' ? undefined : typeof v === 'number' && !Number.isInteger(v) ? Math.round(v * 1000) / 1000 : v));
   };
@@ -240,7 +242,7 @@
       nations: o.nations, player: o.player, attacks: [], boats: o.boats || [], missiles: o.missiles || [], builds: o.builds || [], blist: [],
       dip: o.dip || {}, warM: new Uint8Array(MAXN * MAXN), rel: new Float32Array(MAXN * MAXN), blocs: o.blocs, wars: [], border: [],
       news: o.news || [], chronicle: o.chronicle || [], stats: { pop: 1, gdp: 1, trade: 1, byIdeo: {}, byFam: {} }, world: o.world,
-      flags: o.flags || {}, dirty: [], dirtyAll: true, radList: [], mapMode: 'political', fx: [], sfx: [], capLost: [], evq: o.evq || [], tray: o.tray || [], votes: o.votes || [], over: o.over || null, nextId: o.nextId || 1, fortsDirty: true, tut: o.tut || null, offers: o.offers || [], shock: o.shock || [],
+      flags: o.flags || {}, dirty: [], dirtyAll: true, radList: [], mapMode: 'political', fx: [], sfx: [], capLost: [], evq: o.evq || [], tray: o.tray || [], votes: o.votes || [], over: o.over || null, nextId: o.nextId || 1, fortsDirty: true, tut: o.tut || null, offers: o.offers || [], shock: o.shock || [], beach: o.beach || [], press: o.press || null,
     };
     G.rng.s = o.rng >>> 0;
     G.historical = !!o.historical; G.story = o.story || null; if (G.historical && !G.story) ID.Story.init(G);

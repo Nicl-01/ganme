@@ -234,6 +234,7 @@
     /* equipment */
     const eq = clamp(0.62 + arms / Math.max(1, n.troops * 0.035) * 0.38, 0.62, 1.35) - (n.a.shortage ? 0.1 : 0);
     n.equip += (eq - n.equip) * 0.1 * (eq > n.equip && n.a.dp ? n.a.dp.equipRegen : 1);
+    n.a.eqTarget = eq; n.a.armsPaid = arms; n.a.armsNeed = Math.max(1, n.troops * 0.035);
 
     /* research */
     let pts = science * (1 + pressLaw.sci + (I.flags.sciBonus || 0) - (I.flags.sciPenalty || 0)) * (0.7 + n.fs.intelligentsia / 160) * (1 + ID.mod(n, 'sci'));
@@ -277,6 +278,7 @@
       ID.news(G, 'THE GREAT SLUMP: markets collapse across the world.', 'bad');
       ID.headline(G, { kicker: 'Black week on the exchanges', title: 'The Great Slump', sub: 'Markets collapse across the world. Planned and peasant economies watch from the sidelines.', tone: 'bad' });
       ID.chron(G, 'world', 'The Great Slump begins. Market economies everywhere contract; planned and subsistence economies watch.');
+      if (ID.Press) ID.Press.slump(G);
       ID.sfx(G, 'crash');
       for (const n of G.nations) {
         if (!n || !n.alive) continue;

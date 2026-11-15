@@ -233,10 +233,12 @@
       '<div class="field"><label>Two-finger scroll and mouse wheel</label><div class="seg">' + [['auto', 'Automatic'], ['pan', 'Scroll pans'], ['zoom', 'Scroll zooms']].map((x) => '<button class="' + ((s.scroll || 'auto') === x[0] ? 'on' : '') + '" data-act="scrollMode" data-a=\'"' + x[0] + '"\'>' + x[1] + '</button>').join('') + '</div><small>Automatic: a trackpad’s two-finger scroll pans and pinch zooms; a mouse wheel zooms.</small></div>' +
       '<div class="field"><label>Ordinary dispatches</label><div class="seg">' + [[true, 'Wait beside the map'], [false, 'Stop the clock']].map((x) => '<button class="' + ((s.trayEvents !== false) === x[0] ? 'on' : '') + '" data-act="setTray" data-a="' + x[0] + '">' + x[1] + '</button>').join('') + '</div><small>Crises and history always stop the clock.</small></div>' +
       '<div class="field"><label>Propaganda banners</label><div class="seg">' + [[true, 'On'], [false, 'Off']].map((x) => '<button class="' + ((s.madness !== false) === x[0] ? 'on' : '') + '" data-act="setMad" data-a="' + x[0] + '">' + x[1] + '</button>').join('') + '</div><small>Under an absolute monarch or a personal dictator, a banner of slogans sweeps across the map now and then, more often as the cult grows.</small></div>' +
+      '<div class="field"><label>The World Dispatch</label><div class="seg">' + [['pop', 'Every issue'], ['big', 'Great events only'], ['off', 'Never pop up']].map((x) => '<button class="' + ((s.papers || 'pop') === x[0] ? 'on' : '') + '" data-act="setPapers" data-a=\'"' + x[0] + '"\'>' + x[1] + '</button>').join('') + '</div><small>The newspaper reports what happens in other countries. Issues you do not see pop up can be read under World.</small></div>' +
       '<div class="field"><label>Map</label>' + btn(R.showBlocs ? 'Bloc borders shown' : 'Bloc borders hidden', 'toggleBlocs', null, { cls: 'sm ' + (R.showBlocs ? 'on' : 'ghost') }) + '</div>' +
       '<div class="field"><label>Records</label>' + btn('Erase run records and unlocks', 'resetRecords', null, { cls: 'sm ghost' }) + '</div>' +
       '<div class="row">' + btn('Done', UI.G ? 'menu' : 'closeModal', null, { cls: 'red' }) + '</div></div></div>', 'menu');
   };
+  acts.setPapers = (a) => { UI.settings.papers = a; UI.saveSettings(); acts.settings(); };
   acts.setTray = (a) => { UI.settings.trayEvents = !!a; UI.saveSettings(); if (UI.G) UI.G.trayEvents = !!a; acts.settings(); };
   acts.setMad = (a) => { UI.settings.madness = !!a; UI.saveSettings(); if (!a && ID.Madness) ID.Madness.off(); acts.settings(); };
   acts.toggleMute = () => { UI.settings.muted = !UI.settings.muted; ID.Audio.setVol(UI.settings.vol, UI.settings.muted); UI.saveSettings(); acts.settings(); };
@@ -302,9 +304,10 @@
       h += big + foot + '</div></div>';
     } else {
       const title = o.result === 'victory' ? (o.type === 'objective' ? ID.ideo(n).objective.name : o.name) : 'The verdict of history';
-      const k = o.result === 'victory' ? 'VICTORY' : 'THE CENTURY CLOSES';
+      const sec = o.result === 'victory' && o.type === 'objective' && ID.ideo(n).secret;
+      const k = sec ? 'A SECRET ENDING' : o.result === 'victory' ? 'VICTORY' : 'THE CENTURY CLOSES';
       const text = o.result === 'victory'
-        ? (o.type === 'objective' ? ID.ideo(n).objective.desc + ' It is done.' : o.type === 'verdict' ? 'Sixty-six years on, no state stands higher than ' + n.name + '.' : 'By ' + o.year + ', ' + n.name + ' has achieved what no rival could stop.')
+        ? (sec ? ID.ideo(n).ending : o.type === 'objective' ? ID.ideo(n).objective.desc + ' It is done.' : o.type === 'verdict' ? 'Sixty-six years on, no state stands higher than ' + n.name + '.' : 'By ' + o.year + ', ' + n.name + ' has achieved what no rival could stop.')
         : n.name + ' endures to ' + o.year + ', ranked #' + (o.info && o.info.rank) + ' among the surviving states. Others will write this century’s history.';
       h = '<div class="dlg xwide"><div class="dhd"><div class="k">' + k + '</div><div class="d">' + ID.dateOf(G.tick).str + '</div></div><div class="dbd"><h2>' + esc(title) + '</h2><p class="tx">' + esc(text) + '</p>' +
         '<p class="lead">' + esc(n.name) + ' began as ' + esc(C.fate.started) + (C.fate.changed ? ' and ended as ' + esc(C.fate.name) : ' and kept its system to the end') + '. At the close ' + C.fate.n + ' state' + (C.fate.n === 1 ? '' : 's') + ' and ' + Math.round(C.fate.share * 100) + '% of humanity lived under ' + esc(C.fate.name) + '.</p>' + big +

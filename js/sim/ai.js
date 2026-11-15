@@ -85,7 +85,7 @@
     const era = ID.eraOf(G.tick);
     if (era >= 2 && n.tech.mil >= 4 && n.nb[B.SILO] < 2 && n.gold > 900) { const s = ID.spotNear(G, n.capital, n.id, 12); if (s >= 0) { ID.startBuild(G, n, s, B.SILO); return; } }
     if (n.nb[B.SILO]) {
-      if (n.tech.mil >= 6 && n.nukes < 3 && n.gold > 1100) ID.Events.runDecision(G, n, 'build_nuke');
+      if (n.tech.mil >= 6 && n.nukes < 2 && n.gold > 1800) ID.Events.runDecision(G, n, 'build_nuke');
       else if (n.missiles < 2 && n.gold > 450) ID.Events.runDecision(G, n, 'build_missile');
     }
     if (n.coastTiles > 8 && n.nb[B.PORT] < (I.flags.navalPower ? 5 : 1 + (n.tiles > 2000 ? 1 : 0)) && can(B.PORT)) {
@@ -240,9 +240,9 @@
       if (t) Dp.startOp(G, n, 'fund', t);
     }
     if (n.ops.length && n.gold < 30) n.ops.length = 0;
-    if (I.dip.export >= 0.2 && n.gold > 420 && rng.chance(0.08)) {
-      const c = ns.filter((o) => o !== n && !ID.ideo(o).flags.noCoup && o.fs.military < 42 && ID.op(G, n.id, o.id) < -25 && ID.ideo(o).family !== I.family);
-      if (c.length) Dp.startOp(G, n, 'coup', rng.pick(c));
+    if (I.dip.export >= 0.2 && n.gold > 380 && n.ops.length < 3 && rng.chance(0.035)) {
+      const c = ns.filter((o) => o !== n && !ID.ideo(o).flags.noCoup && ID.op(G, n.id, o.id) < -25 && ID.ideo(o).family !== I.family && !o.civilOf && Dp.plotBest(G, n, o));
+      if (c.length) Dp.startOp(G, n, 'coup', rng.weighted(c, (o) => 100 - o.stab + (o.id === G.player ? 10 * diffS.subvert : 0)));
     }
     if (I.flags.generalStrike && n.gold > 120 && n.auth >= 20 && rng.chance(0.3)) {
       const c = ns.filter((o) => o !== n && o.fs.workers < 45 && o.laws.labor !== 'control' && ID.op(G, n.id, o.id) < -10 && (n.cd['strike_' + o.id] || 0) <= G.tick);
@@ -365,9 +365,9 @@
     }
     // naval landings against enemies we cannot reach by land
     if (n.nb[B.PORT] && readiness > 0.6 && (n.a.navalCd || 0) <= G.tick) {
-      const sea = enemies.filter((e) => !ID.borders(G, n.id, e.id) && e.coastTiles > 0);
+      const sea = enemies.filter((e) => !ID.borders(G, n.id, e.id) && e.coastTiles > 0 && C.crossing(n, e).sunk < 0.3);
       if (sea.length && !G.boats.some((b) => b.owner === n.id)) {
-        const e = G.rng.pick(sea); const tile = landingTile(G, n, e);
+        const e = G.rng.pick(sea); let tile = C.bestLanding(G, n, e, true); if (tile < 0) tile = landingTile(G, n, e);
         if (tile >= 0) { const r = C.launchBoat(G, n, tile, Math.min(pool * 0.5, pool * cap), pickStyle(G, n, e, pool)); n.a.navalCd = G.tick + (typeof r === 'string' ? 120 : 45); }
       }
     }

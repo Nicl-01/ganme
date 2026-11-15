@@ -118,6 +118,20 @@
   };
   acts.expandHint = () => { const G = UI.G, n = P(); let best = -1; for (let p = 1; p < G.provinces.length && best < 0; p++) { const Pr = G.provinces[p]; if (!Pr.owner && Pr.wild && Pr.nb.some((q) => G.provinces[q].owner === n.id)) best = Pr.center; } if (best >= 0) { R.focus(best); UI.sel = best; R.selected = best; } };
   acts.recall = (a) => { const G = UI.G; const at = G.attacks.find((x) => x.id === a); if (at) { ID.Combat.cancel(G, at); UI.toast('Recalled. A tenth of the force is lost in the withdrawal.', true); } };
+  /* What the crossing will cost: their navy against ours. */
+  UI.seaLine = function (A, D) {
+    const C = ID.Combat, cr = C.crossing(A, D), a = C.seaPower(A), d = C.seaPower(D);
+    return 'Sea power: ours <b>' + a.toFixed(1) + '</b>, theirs <b>' + d.toFixed(1) + '</b>. ' + (cr.sunk > 0.02 ? '<span class="' + (cr.sunk > 0.25 ? 'bad' : 'warn') + '">Their navy will sink about ' + Math.round(cr.sunk * 80) + '% of the convoy</span>' : '<span class="good">Their navy cannot stop the convoy</span>') + ', and the fight for the beach costs ' + (cr.costK < 0.97 ? '<span class="good">' + Math.round((1 - cr.costK) * 100) + '% less</span>' : cr.costK > 1.03 ? '<span class="bad">' + Math.round((cr.costK - 1) * 100) + '% more</span>' : 'the usual price') + '.';
+  };
+  UI.landTip = function (G, me, n, tr, pl) {
+    return '<h5>Naval landing</h5>Send ' + ID.fmtPop(tr) + ' troops by sea from your nearest port. The first wave takes the beach around this tile and holds it as a <b>beachhead</b>: everything you conquer from it is supplied through it. Lose the beachhead tile before you take a port and the landing is cut off.<hr>' + UI.seaLine(me, n) + (typeof pl === 'string' ? '' : '<br>Crossing: about ' + Math.ceil(pl.path.length / ID.Combat.BOAT_SPEED) + ' days.') + '<hr><span class="dim">Sea power comes from ports, naval programmes and military technology. A fortress on the coast makes the beach two and a half times as costly.</span>';
+  };
+  acts.autoLanding = (id) => {
+    const G = UI.G, n = P(), e = G.nations[id]; if (!e || !e.alive) return;
+    const t = ID.Combat.bestLanding(G, n, e, false);
+    if (t < 0) { UI.toast('No beach in ' + e.base + ' is within ' + Math.round(ID.Combat.navalRange(G, n)) + ' tiles of your ports. Build a port closer, or wait for longer-ranged ships in a later age.'); ID.Audio.play('bad'); return; }
+    UI.sel = t; R.selected = t; R.focus(t); acts.landing();
+  };
   acts.landing = () => {
     const G = UI.G, n = P(); if (UI.sel < 0) return;
     const cap = n.emergency ? 1 : ID.ideo(n).control.cap;
@@ -128,7 +142,10 @@
   acts.propose = (a) => { const G = UI.G; UI.tryDo(ID.Diplomacy.propose(G, P(), G.nations[a[0]], a[1]), { trade: 'Trade treaty signed.', nap: 'Non-aggression pact signed.', ally: 'Alliance concluded.', peace: 'Peace is signed.', embargo: 'Embargo declared.', cancel_trade: 'Trade treaty cancelled.', cancel_nap: 'Pact denounced.' }[a[1]]); };
   acts.leaveBloc = () => { ID.Diplomacy.leaveBloc(UI.G, P(), true); };
   acts.op = (a) => { const G = UI.G; UI.tryDo(ID.Diplomacy.startOp(G, P(), a[1], G.nations[a[0]]), a[1] === 'fund' ? 'Money is flowing to the movement.' : a[1] === 'coup' ? 'Your contacts have their instructions.' : 'The call has gone out.'); };
-  acts.stopOp = (a) => ID.Diplomacy.stopOp(UI.G, P(), a);
+  acts.stopOp = (a) => { ID.Diplomacy.stopOp(UI.G, P(), a); UI.after(); };
+  acts.plot = (a) => { const G = UI.G, t = G.nations[a[0]]; if (UI.tryDo(ID.Diplomacy.startOp(G, P(), 'coup', t, a[1]), 'Your envoy has been heard out. The conspiracy begins.')) UI.after(); };
+  acts.plotSignal = (a) => { const G = UI.G, t = G.nations[a]; if (UI.tryDo(ID.Diplomacy.plotSignal(G, P(), t))) UI.after(); };
+  acts.plotBoost = (a) => { const G = UI.G, t = G.nations[a]; if (UI.tryDo(ID.Diplomacy.plotBoost(G, P(), t), 'The garrison’s paymaster has been paid.')) UI.after(); };
   acts.aid = (a) => {
     const G = UI.G, n = P(), t = G.nations[a];
     if (n.gold < 40 || n.troops < 30) { UI.toast('Needs 40 gold and troops to spare.'); return; }
@@ -254,7 +271,7 @@
   };
 
   /* ---------------------------------------------------------------- map modes */
-  const MODES = [['political', 'Political', 'Z', 'Who holds what. Your own borders are red; bloc members share a border colour.'], ['ideology', 'Ideology', 'X', 'Every state coloured by its system.'], ['opposition', 'Opposition', 'C', 'The leading opposition movement in each province, shaded by its strength.'], ['stability', 'Unrest', 'V', 'Unrest by province: pale is quiet, red is close to revolt.'], ['supply', 'Supply', 'B', 'Green is in supply, ochre is supplied by sea, red is cut off and will surrender.'], ['terrain', 'Terrain', 'N', 'Plains and farmland are fast; forest, hills and mountains slow a front and bleed it.']];
+  const MODES = [['political', 'Political', 'Z', 'Who holds what. Your own borders are red; bloc members share a border colour.'], ['ideology', 'Ideology', 'X', 'Every state coloured by its system.'], ['opposition', 'Opposition', 'C', 'The leading opposition movement in each province, shaded by its strength.'], ['stability', 'Unrest', 'V', 'Unrest by province: pale is quiet, red is close to revolt.'], ['supply', 'Supply', 'B', 'Green is joined to its capital by land. Ochre is supplied by sea through a port or a beachhead. Red is cut off: with an enemy beside it, it surrenders within weeks.'], ['terrain', 'Terrain', 'N', 'Plains and farmland are fast; forest, hills and mountains slow a front and bleed it.']];
   UI.MODES = MODES;
   UI.renderModes = function () {
     $('#modes').innerHTML = MODES.map((m) => '<button class="' + (R.mode === m[0] ? 'on' : '') + '" data-act="mode" data-a=\'"' + m[0] + '"\'' + tip('<b>' + m[1] + ' map</b> <span class="dim">(' + m[2] + ')</span><br>' + m[3]) + '>' + m[1] + '<kbd>' + m[2] + '</kbd></button>').join('');
@@ -303,7 +320,8 @@
       rows.push(['Province unrest', '<span class="' + (Pr.unrest > 50 ? 'bad' : Pr.unrest > 30 ? 'warn' : '') + '">' + Math.round(Pr.unrest) + '</span>', 'Unrest in this province. Over 72 in unintegrated land, it may break away.']);
       if (Pr.opp) rows.push(['Opposition', UI.ideoTag(Pr.opp) + ' ' + Math.round(Pr.oppStr), 'The leading opposition movement here and its strength. Provinces above 45 join an uprising.' + (Pr.sponsor && me.a.knownOps && me.a.knownOps[Pr.sponsor] ? '<br><span class="warn">Funded by ' + esc(G.nations[Pr.sponsor].name) + '.</span>' : '')]);
       if (Pr.core !== o) rows.push(['Integration', Math.round(Pr.integ) + '%', 'Conquered land resists until integrated. ' + (Pr.core && G.nations[Pr.core] ? 'Its people still look to ' + esc(G.nations[Pr.core].name) + '.' : '')]);
-      if (G.cut[i] === 1) rows.push(['Supply', '<span class="bad">cut off</span>', 'This pocket is encircled. It will surrender, and its share of your troops with it, unless relieved or given a port.']);
+      if (G.cut[i] === 1) rows.push(['Supply', '<span class="bad">cut off</span>', '<h5>Cut off</h5>This land has no road, port or beachhead linking it to the rest of the country. If an enemy at war with you borders it, it surrenders within weeks and takes its share of your troops with it.<hr><b>To save it:</b> break through by land, land troops on its coast from one of your ports (the landing becomes a beachhead), or finish a port here.']);
+      else if (G.cut[i] === 2) rows.push(['Supply', '<span class="warn">by sea</span>', '<h5>Supplied by sea</h5>This land is not joined to your capital by land. It is supplied through ' + (ID.Combat.isBeach(G, i) ? 'this beachhead' : 'a port or a beachhead on its coast') + ' and fights normally.<hr>If the enemy takes every port and beachhead in it, it is cut off.']);
       h += UI.kv(rows);
       const bl = G.bld[i];
       if (bl) h += '<div class="note">' + ID.BUILDINGS[bl].name + ': ' + esc(ID.BUILDINGS[bl].desc) + '</div>';
@@ -320,7 +338,7 @@
       if (ID.atWar(G, me.id, n.id)) {
         const cap = me.emergency ? 1 : ID.ideo(me).control.cap; const tr = me.troops * Math.min(UI.commit, cap);
         if (ID.borders(G, me.id, n.id) || G.attacks.some((a) => a.from === me.id && a.to === n.id)) h += UI.btn('Attack <span>' + ID.fmtPop(tr) + ' troops</span>', 'attack', null, { cls: 'red', tip: '<h5>Attack</h5>Commit ' + Math.round(Math.min(UI.commit, cap) * 100) + '% of your pool (' + ID.fmtPop(tr) + ') against ' + esc(n.name) + ' in the style chosen on the bar below. <span class="dim">(Enter)</span>' });
-        if (G.coast[i]) { const pl = ID.Combat.planBoat(G, me, i); h += UI.btn('Naval landing here <span>' + ID.fmtPop(tr) + '</span>', 'landing', null, { off: typeof pl === 'string' ? pl : '', tip: '<h5>Naval landing</h5>Send ' + ID.fmtPop(tr) + ' troops by sea from your nearest port to this tile. The first tiles ashore cost half as much again; a fortress on the coast can throw you back.' + (typeof pl === 'string' ? '' : '<hr>Crossing: about ' + Math.round(pl.path.length / 1.3) + ' days') }); }
+        if (G.coast[i]) { const pl = ID.Combat.planBoat(G, me, i); h += UI.btn('Naval landing here <span>' + ID.fmtPop(tr) + '</span>', 'landing', null, { off: typeof pl === 'string' ? pl : '', tip: UI.landTip(G, me, n, tr, pl) }); }
         if (me.nb[B.SILO]) {
           const cm = ID.Combat.canMissile(G, me, i, false), cn = ID.Combat.canMissile(G, me, i, true);
           h += UI.btn('Missile strike here', 'missile', 0, { off: typeof cm === 'string' ? cm : '', tip: 'Destroys about half the buildings within 3 tiles.' });
@@ -361,7 +379,7 @@
     if (!ID.Combat.styleOk(n, UI.style)) UI.style = 'advance';
     const tr = n.troops * UI.commit;
     let h = '<div class="l1"><label' + tip('<h5>Commit</h5>The share of your uncommitted pool sent into the next attack or landing. What you send leaves the pool; what you keep defends everywhere at once.' + (cap < 1 ? '<hr><span class="warn">' + esc(I.name) + ': no single offensive may use more than ' + Math.round(cap * 100) + '%.</span>' : '')) + '>Commit</label><input type="range" min="5" max="' + Math.round(cap * 100) + '" step="5" value="' + Math.round(UI.commit * 100) + '" data-in="commit" id="in-commit"><b id="commit-v">' + Math.round(UI.commit * 100) + '% · ' + ID.fmtPop(tr) + '</b>' +
-      (t ? UI.btn('Attack ' + esc(t.base), 'attack', null, { cls: 'red', id: 'b-attack', tip: 'Launch or reinforce the attack on ' + esc(t.name) + ' <span class="dim">(Enter)</span>' }) : n.nwars ? '<span class="dim" style="font-size:14px">Select an enemy on the map</span>' : '') +
+      (t && (ID.borders(G, n.id, t.id) || mine.some((a) => a.to === t.id)) ? UI.btn('Attack ' + esc(t.base), 'attack', null, { cls: 'red', id: 'b-attack', tip: 'Launch or reinforce the attack on ' + esc(t.name) + ' <span class="dim">(Enter)</span>' }) : t ? UI.btn('Land in ' + esc(t.base), 'autoLanding', t.id, { cls: 'red', id: 'b-attack', off: n.nb[B.PORT] ? '' : 'You have no land front with ' + esc(t.base) + ' and no port to sail from. Build a port on your coast.', tip: '<h5>Naval landing</h5>No land front with ' + esc(t.name) + '. Your staff picks the best beach within reach of your ports, away from fortresses, and sends ' + ID.fmtPop(tr) + ' troops.<hr>' + UI.seaLine(n, t) + '<br>To choose the beach yourself, click a tile on their coast.' }) : n.nwars ? '<span class="dim" style="font-size:14px">Select an enemy on the map</span>' : '') +
       (wildOK ? UI.btn('Expand', 'expand', null, { cls: t ? 'ghost' : 'red', id: 'b-expand', tip: '<h5>Expand into the hinterland</h5>Claim unclaimed land along your frontier with ' + ID.fmtPop(tr) + ' troops. No war, no vote: the land is free for whoever takes it first. Your neighbours are racing for it too.' }) : '') + '</div>';
     if (n.nwars) { const PO = ID.Combat.POSTURE, cur = n.posture || 'balanced'; h += '<div class="styles posture"><span class="plab">Posture</span>' + Object.keys(PO).map((k) => UI.btn(PO[k].name, 'posture', k, { cls: 'sm ' + (cur === k ? 'on' : 'ghost'), tip: '<h5>' + PO[k].name + '</h5>' + esc(PO[k].desc) + (n.flags.ld_depth && k === 'depth' ? '<hr>Defence in depth doctrine: twice as effective.' : '') + '<hr>Changing posture costs twenty days of reorganisation.' })).join('') + '</div>'; }
     const dord = ID.Doctrine.orderOf(n), okeys = ['barrage', 'airraid', 'reserves']; if (dord) okeys.unshift(dord.key);
@@ -369,7 +387,7 @@
     if (n.nwars) h += '<div class="styles">' + Object.keys(ID.STYLES).map((k) => { const S = ID.STYLES[k], e = I.doctrine.styles[k] || 0, ok = ID.Combat.styleOk(n, k); return UI.btn(S.name + ' <span class="num">×' + e.toFixed(2) + '</span>', 'style', k, { cls: 'sm ' + (UI.style === k ? 'on' : 'ghost'), off: ok ? '' : S.needs === 'mil2' && n.tech.mil < 2 ? 'Needs military technology 2.' : 'Your doctrine cannot fight this way.', tip: '<h5>' + S.name + '</h5>' + esc(S.desc) + '<hr>Your doctrine: <b>×' + e.toFixed(2) + '</b> effectiveness' }); }).join('') + '</div>';
     if (mine.length || boats.length) {
       h += '<div class="chips">' + mine.map((a) => '<span class="chip"' + tip('Committed ' + ID.fmtPop(a.committed) + ', ' + a.taken + ' tiles taken' + (a.to ? ', ' + ID.STYLES[a.style].name.toLowerCase() : '') + '.') + '>→ ' + (a.to ? esc(G.nations[a.to].base) : 'Hinterland') + ' <b class="num">' + ID.fmtPop(a.troops) + '</b><button data-act="recall" data-a="' + a.id + '"' + tip('Recall the survivors. A tenth are lost withdrawing.') + '>recall</button></span>').join('') +
-        boats.map((b) => '<span class="chip">⛴ at sea <b class="num">' + ID.fmtPop(b.troops) + '</b></span>').join('') + '</div>';
+        boats.map((b) => '<span class="chip"' + tip('A convoy on its way. It lands in about ' + Math.max(1, Math.ceil((b.path.length - 1 - b.pos) / ID.Combat.BOAT_SPEED)) + ' days.') + '>⛴ at sea <b class="num">' + ID.fmtPop(b.troops) + '</b> <span class="dim num">' + Math.max(1, Math.ceil((b.path.length - 1 - b.pos) / ID.Combat.BOAT_SPEED)) + 'd</span></span>').join('') + '</div>';
     }
     el.innerHTML = h; el.hidden = false;
   };
@@ -387,7 +405,8 @@
     }
     if (G.wildB && G.wildB[n.id] > 0 && !G.attacks.some((a) => a.from === n.id && a.to === 0) && n.troops > n.pop * n.mob * 0.5) add('<b>Unclaimed land</b> on your frontier: expand', 'mil', false, 'expandHint', 0);
     let cut = 0; for (let p = 1; p < G.provinces.length; p++) { const Pr = G.provinces[p]; if (Pr.owner === n.id && G.cut[Pr.center] === 1 && G.owner[Pr.center] === n.id) cut++; }
-    if (cut) add('<b>Pocket cut off</b>: it will surrender', 'mil', true);
+    if (G.press && G.press.fresh && (UI.settings.papers === 'off' || UI.settings.papers === 'big')) add('<b>The World Dispatch</b>: a new issue', null, false, 'paper', G.press.fresh);
+    if (cut) { let ct = -1; for (let p = 1; p < G.provinces.length && ct < 0; p++) { const Pr = G.provinces[p]; if (Pr.owner === n.id && G.cut[Pr.center] === 1 && G.owner[Pr.center] === n.id) ct = Pr.center; } add('<b>Land cut off</b> from supply: relieve it by land or sea', 'mil', true, 'goto', ct); }
     for (const f of ID.FACTION_IDS) if (UI.seen(n, f) < 30 && n.fp[f] > 10) add('<b>' + ID.factionName(n, f) + '</b> are hostile (' + Math.round(UI.seen(n, f)) + ')', 'gov', UI.seen(n, f) < 20);
     if (n.stab < 30) add('<b>Stability ' + Math.round(n.stab) + '</b>: the state is shaking', 'gov', true);
     for (const k in n.drift) if (n.drift[k] >= 65) add('<b>Drift ' + Math.round(n.drift[k]) + '%</b> toward ' + ID.IDEOLOGIES[k].name, 'gov', n.drift[k] >= 85);
@@ -489,6 +508,7 @@
     if (ID.Madness) ID.Madness.frame(G, dt);
     if (G.superq && G.superq.length && !UI.modalKind && !G.over) UI.showSuper();
     if (G.evq.length && !UI.modalKind && !G.over) UI.showEvent();
+    if (UI.tickPaper && G.press && G.press.fresh) UI.tickPaper();
     if (G.over && !UI.overShown) { if (UI.modalKind === 'event' || UI.modalKind === 'menu') UI.closeModal(); G.evq.length = 0; if (!UI.modalKind) { UI.overShown = true; ID.Screens.end(G); } }
     if (G.wantAutosave) { G.wantAutosave = false; ID.Screens.autosave(G); }
     if (ID.Tutorial && G.tut) ID.Tutorial.frame(G, dt);
@@ -500,7 +520,7 @@
     const k = e.key;
     if (UI.modalKind === 'event') { if (k >= '1' && k <= '9') { const b = document.querySelectorAll('#modal .choice')[+k - 1]; if (b) b.click(); } return; }
     if (k === 'Escape' && UI.aim) { UI.aim = null; document.getElementById('map').classList.remove('aim'); UI.toast('Order cancelled.', true); return; }
-    if (k === 'Escape') { if (UI.modalKind) { if (UI.modalKind === 'super') acts.superOk(); else if (UI.modalKind !== 'end' && UI.modalKind !== 'event') UI.closeModal(); } else if (UI.tab) UI.openTab(null); else if (UI.sel >= 0) acts.unsel(); else acts.menu(); return; }
+    if (k === 'Escape') { if (UI.modalKind) { if (UI.modalKind === 'super') acts.superOk(); else if (UI.modalKind === 'paper') acts.paperOk(); else if (UI.modalKind !== 'end' && UI.modalKind !== 'event') UI.closeModal(); } else if (UI.tab) UI.openTab(null); else if (UI.sel >= 0) acts.unsel(); else acts.menu(); return; }
     if (UI.modalKind) return;
     if (k === ' ') { e.preventDefault(); acts.pause(); return; }
     if (k >= '1' && k <= '5') { acts.speed(+k); return; }

@@ -19,7 +19,7 @@
     conf: 'Business confidence', inflation: 'Inflation', threat: 'Threat', unrest: 'Unrest', opp: 'Opposition strength', equip: 'Equipment' };
   const MODL = { prod: 'industrial output', food: 'food output', atk: 'attack', def: 'defence', sci: 'research', ls: 'living standards', legit: 'legitimacy', stab: 'stability', rev: 'revenue', eff: 'efficiency',
     unrest: 'unrest', opp: 'opposition growth', trade: 'trade income', conf: 'confidence', growth: 'population growth', regen: 'recruitment', vote: 'vote share', dist: 'distortion growth', bureau: 'bureaucratisation', pow_capital: 'capital’s power',
-    coup: 'coup risk', auth: 'authority a month', speed: 'front speed', aloss: 'losses in attack', mob: 'mobilisation ceiling', wePace: 'war-weariness growth', driftK: 'drift speed', cityDef: 'city defence', lure: 'enemy advance' };
+    coup: 'coup risk', auth: 'authority a month', speed: 'front speed', aloss: 'losses in attack', mob: 'mobilisation ceiling', wePace: 'war-weariness growth', driftK: 'drift speed', cityDef: 'city defence', lure: 'enemy advance', navy: 'sea power' };
   const BAD_UP = { we: 1, corr: 1, bureau: 1, grievance: 1, dist: 1, inflation: 1, threat: 1, unrest: 1, opp: 1, prestige: 1 };
   const sg = (v) => (v > 0 ? '+' : '−') + Math.abs(Math.round(v * 100) / 100);
   const dur = (m) => (m >= 600 ? ' for good' : ' for ' + m + ' months');
@@ -133,6 +133,7 @@
     if (h && G.story && G.story.loose && opts.length > 1 && !def.fixed && G.rng.chance(0.15)) h = G.rng.weighted(opts.filter((x) => x !== h && !x.noAI), (x) => (x.ai != null && typeof x.ai !== 'function' ? x.ai : 1)) || h;
     const o = h || G.rng.weighted(opts, (x) => (typeof x.ai === 'function' ? x.ai(n, G, ctx) : x.ai != null ? x.ai : 1)) || opts[0];
     Ev.storyPick(G, n, def, o);
+    if (ID.Press && (def.story || def.national || def.press)) ID.Press.story(G, n, def, o, ctx);
     Ev.applyFx(G, n, typeof o.fx === 'function' ? o.fx(n, G, ctx) : o.fx, ctx);
   };
   /* Story choices are remembered: o.sf sets a story flag that later beats read. */
@@ -180,6 +181,9 @@
       if (seen[def.id] && G.tick - seen[def.id] < (def.cd || 60) * 30) continue;
       let w = 0; try { w = def.w(n, G, {}) || 0; } catch (e) { w = 0; }
       if (w <= 0) continue;
+      // what has come round often comes round less, and two dispatches on one subject do not arrive back to back
+      const cnt = (n.a.evN && n.a.evN[def.id]) || 0; if (cnt) w /= 1 + 0.45 * cnt;
+      if (def.theme && n.a.evTh && n.a.evTh[def.theme] != null && G.tick - n.a.evTh[def.theme] < 300) w *= 0.25;
       const t = Ev.tone(def);
       if (t === 'bad') { if (calm) continue; w /= 1 + 0.9 * luck; }
       else if (t === 'good') w *= 1.5 + 0.7 * luck;
@@ -188,8 +192,12 @@
     if (!tot) return;
     if (!G.rng.chance(clamp(tot / (isP ? 130 : 260), 0, isP ? 0.3 : 0.15))) return;
     const pick = G.rng.weighted(cands, (c) => c[1]); if (!pick) return;
-    seen[pick[0].id] = G.tick; n.a.evCd = isP ? 4 : 6;
-    Ev.queue(G, n, pick[0].id, {});
+    const d0 = pick[0]; seen[d0.id] = G.tick; n.a.evCd = isP ? 4 : 6;
+    (n.a.evN || (n.a.evN = {}))[d0.id] = ((n.a.evN[d0.id] || 0) + 1);
+    if (d0.theme) (n.a.evTh || (n.a.evTh = {}))[d0.theme] = G.tick;
+    const ctx = {};
+    if (d0.variants > 1) { const V = n.a.evV || (n.a.evV = {}), last = V[d0.id] != null ? V[d0.id] : -1; let v = G.rng.int(0, d0.variants - 1); if (v === last) v = (v + 1 + G.rng.int(0, d0.variants - 2)) % d0.variants; V[d0.id] = v; ctx.v = v; }
+    Ev.queue(G, n, d0.id, ctx);
   };
 
   /* ---------------------------------------------------------------- decisions */

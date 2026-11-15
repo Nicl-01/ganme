@@ -53,6 +53,7 @@
       for (const o of G.nations) if (o && o.alive && o !== A && o !== Bn && ID.op(G, o.id, Bn.id) > 30) ID.addOp(G, o.id, A.id, -12);
       ID.news(G, 'WAR: ' + A.name + ' declares war on ' + Bn.name + ' (' + D.CB_NAMES[cb || 'none'] + ').', 'war', A.id, Bn.id);
       ID.chron(G, 'war', A.name + ' declares war on ' + Bn.name + '.', A.id, Bn.id);
+      if (ID.Press) ID.Press.war(G, A, Bn, cb);
       if (A.id === G.player) ID.headline(G, { kicker: 'Mobilisation', title: 'War with ' + Bn.base, sub: A.name + ' declares war on ' + Bn.name + '. ' + D.CB_NAMES[cb || 'none'] + '.', a: A.id, b: Bn.id, tone: 'war' });
       else if (Bn.id === G.player) ID.headline(G, { kicker: 'Invasion', title: Bn.base + ' attacked', sub: A.name + ' has declared war on us. The army stands to the frontier.', a: A.id, b: Bn.id, tone: 'war' });
       else if (ID.isMajor(G, A) && ID.isMajor(G, Bn)) ID.headline(G, { kicker: 'The powers collide', title: A.base + ' against ' + Bn.base, sub: 'Two of the world’s great powers are at war.', a: A.id, b: Bn.id, tone: 'war' });
@@ -122,6 +123,8 @@
     d.war = 0; if (truce) d.truce = G.tick + 5 * 360;
     G.warM[A.id * MAXN + Bn.id] = G.warM[Bn.id * MAXN + A.id] = 0;
     A.nwars = Math.max(0, A.nwars - 1); Bn.nwars = Math.max(0, Bn.nwars - 1);
+    if (A.objs) delete A.objs[Bn.id]; if (Bn.objs) delete Bn.objs[A.id];
+    for (let k = G.boats.length - 1; k >= 0; k--) { const bt = G.boats[k], o = G.owner[bt.target]; if ((bt.owner === A.id && o === Bn.id) || (bt.owner === Bn.id && o === A.id)) { G.boats.splice(k, 1); const w = G.nations[bt.owner]; if (w.alive) w.troops += bt.troops; } }
     for (let k = G.attacks.length - 1; k >= 0; k--) {
       const a = G.attacks[k];
       if ((a.from === A.id && a.to === Bn.id) || (a.from === Bn.id && a.to === A.id)) { G.attacks.splice(k, 1); const o = G.nations[a.from]; if (o.alive) o.troops += a.troops; }
@@ -141,6 +144,7 @@
     }
     ID.news(G, 'Peace between ' + A.name + ' and ' + Bn.name + (win ? ': ' + win.name + ' keeps its gains.' : ', with nothing settled.'), 'dip', A.id, Bn.id);
     ID.chron(G, 'peace', 'Peace between ' + A.name + ' and ' + Bn.name + (win ? '; ' + win.name + ' is the victor.' : '.'), A.id, Bn.id);
+    if (ID.Press && w.cb !== 'civil') ID.Press.peace(G, A, Bn, win, w);
     if (!G.headless) G.dirtyAll = true;
   };
   /* Would the AI nation X accept peace offered by Y? */
@@ -228,10 +232,12 @@
         ID.news(G, L.name + ' capitulates. ' + Wn.name + ' installs a friendly government.', 'war', Wn.id, L.id);
         if (Wn.id === G.player) ID.headline(G, { kicker: 'Peace dictated', title: L.base + ' capitulates', sub: 'A friendly government takes power under our protection.', a: Wn.id, b: L.id, tone: 'good' });
         ID.chron(G, 'conquest', Wn.name + ' defeats its neighbour and installs a client regime: ' + L.name + '.', Wn.id, L.id);
+        if (ID.Press) ID.Press.fall(G, L, Wn, 'install');
       } else {
         Wn.gold += 120 + L.gold * 0.5; L.gold *= 0.5; ID.addOpBoth(G, L.id, Wn.id, 25);
         ID.news(G, L.name + ' capitulates and is released on payment of an indemnity.', 'war', Wn.id, L.id);
         ID.chron(G, 'peace', Wn.name + ' defeats ' + L.name + ' and withdraws.', Wn.id, L.id);
+        if (ID.Press) ID.Press.fall(G, L, Wn, 'release');
       }
       if (!G.headless) G.dirtyAll = true;
       return;
@@ -260,11 +266,13 @@
       if (by.claims.length === 0 && n.claims.length) by.claims = n.claims.slice();
       ID.news(G, 'The civil war is over: ' + by.name + ' rules the whole country.', 'rev', by.id);
       ID.chron(G, 'civilwar', 'The civil war ends. ' + by.name + ' is victorious over ' + n.name + '.', by.id, n.id);
+      if (ID.Press) ID.Press.civilEnds(G, by, n);
       if (by.sponsor && G.nations[by.sponsor] && G.nations[by.sponsor].alive) { const s = G.nations[by.sponsor]; s.cnt.exported = (s.cnt.exported || 0) + 1; s.fervor = Math.min(100, s.fervor + 18); s.a.spreadAt = G.tick; by.sponsor = 0; }
       if (by.civilOf === 0 && ID.IDEOLOGIES[by.ideo]) { const W = G.W; G.world.waves.push({ fam: ID.ideo(by).family, ideo: by.ideo, str: 1, m: 0, x: by.capital % W, y: (by.capital / W) | 0, src: by.id }); }
     } else {
       ID.news(G, n.name + (annexed ? ' is annexed by ' + by.name + '.' : ' ceases to exist.'), 'war', by ? by.id : 0, n.id);
       ID.chron(G, 'conquest', n.name + (by ? ' is conquered by ' + by.name + '.' : ' collapses.'), by ? by.id : 0, n.id);
+      if (ID.Press && by && !n.civilOf) ID.Press.fall(G, n, by, 'annex');
     }
     if (n.id === G.player && !G.over) ID.Game.defeat(G, civil ? 'civilwar' : 'conquered', { by: by ? by.id : 0 });
     if (by && by.id === G.player) { ID.sfx(G, 'victory'); if (!civil) ID.headline(G, { kicker: 'Annexation', title: n.base + ' is no more', sub: 'Its lands pass to ' + by.name + '.', a: by.id, b: n.id, tone: 'good' }); }
@@ -280,6 +288,7 @@
     G.blocs.push(bl); leader.bloc = bl.id;
     ID.news(G, leader.name + ' founds the ' + name + '.', 'dip', leader.id);
     ID.chron(G, 'bloc', leader.name + ' founds the ' + name + '.', leader.id);
+    if (ID.Press) ID.Press.bloc(G, leader, name);
     return bl;
   };
   D.joinBloc = function (G, n, blocId) {
@@ -354,9 +363,9 @@
   /* ---------------------------------------------------------------- covert operations */
   D.opCost = function (G, n, type) {
     const cheap = ID.ideo(n).flags.permRev ? 0.5 : 1;
-    return type === 'fund' ? 6 * cheap : type === 'coup' ? Math.round(150 * cheap) : type === 'strike' ? 60 : 0;
+    return type === 'fund' ? 6 * cheap : type === 'coup' ? Math.round(8 * cheap) : type === 'strike' ? 60 : 0;
   };
-  D.startOp = function (G, n, type, target) {
+  D.startOp = function (G, n, type, target, seat) {
     const I = ID.ideo(n);
     if (!target.alive || target === n) return 'No such target.';
     if (type === 'fund') {
@@ -366,18 +375,13 @@
       return '';
     }
     if (type === 'coup') {
-      const cost = D.opCost(G, n, 'coup');
-      if (n.gold < cost) return 'Not enough gold (' + cost + ').';
-      if ((n.cd['coup_' + target.id] || 0) > G.tick) return 'Your contacts there are lying low until ' + ID.dateOf(n.cd['coup_' + target.id]).short + '.';
-      if (ID.ideo(target).flags.noCoup) return 'There is no officer corps there to suborn.';
-      n.gold -= cost; n.cd['coup_' + target.id] = G.tick + 4 * 360;
-      const p = ID.Politics.coupOdds(G, target, true) * 0.55 * (I.flags.permRev ? 1.4 : 1);
-      if (G.rng.chance(p)) { ID.news(G, 'Officers move against the government of ' + target.name + '.', 'pol', target.id); ID.Politics.coup(G, target, n.id); }
-      else {
-        ID.addOpBoth(G, n.id, target.id, -35); target.sm.military += 5;
-        ID.news(G, target.name + ' exposes a foreign-backed plot and blames ' + n.name + '.', 'dip', target.id, n.id);
-        if (n.id === G.player) ID.sfx(G, 'bad');
-      }
+      // a conspiracy is built around one man in their inner circle: recruit him, feed it, then give the signal
+      const pick = seat ? D.plotFig(target, seat) : D.plotBest(G, n, target);
+      if (!pick) return 'Nobody in their inner circle will listen to you yet.';
+      const why = D.plotBlock(G, n, target, pick); if (why) return why;
+      n.gold -= D.plotCost(n, pick);
+      pick.backer = n.id; pick.prep = 10;
+      n.ops.push({ type: 'coup', target: target.id, seat: pick.seat, name: pick.name, cost: D.opCost(G, n, 'coup'), since: G.tick });
       return '';
     }
     if (type === 'strike') {
@@ -397,13 +401,164 @@
     }
     return 'Unknown operation.';
   };
-  D.stopOp = function (G, n, idx) { n.ops.splice(idx, 1); };
+  D.stopOp = function (G, n, idx) {
+    const o = n.ops[idx]; if (!o) return;
+    if (o.type === 'coup') { const t = G.nations[o.target], f = t && D.plotFig(t, o.seat); if (f && f.backer === n.id && f.name === o.name) { f.backer = 0; f.prep = 0; } }
+    n.ops.splice(idx, 1);
+  };
+
+  /* ---- diplomatic notes (foreign policy programmes, data/foreign.js) */
+  D.note = function (G, A, T, kind) {
+    if (!A || !T || !A.alive || !T.alive || A === T || !ID.NOTE_KINDS[kind]) return;
+    if (ID.atWar(G, A.id, T.id)) return;
+    if (T.id === G.player && !G.autoPlayer) { ID.Events.queue(G, T, 'fp_note', { from: A.id, kind }); return; }
+    D.noteAnswer(G, A, T, kind, D.noteWould(G, A, T, kind));
+  };
+  D.noteWould = function (G, A, T, kind) {
+    const r = D.power(A) / Math.max(1, D.power(T)), op = ID.op(G, T.id, A.id), aff = ID.ideoAffinity(A.ideo, T.ideo), rng = G.rng;
+    if (kind === 'treaty') return A.laws.trade !== 'autarky' && T.laws.trade !== 'autarky' && op + aff * 0.4 + (r > 1.5 ? 10 : 0) + rng.range(-15, 25) > 0;
+    if (kind === 'cede') return r > 2.2 && op > -45 && !T.bloc && rng.chance(clamp((r - 2) / 4, 0, 0.6));
+    if (kind === 'bloc') return !T.bloc && !ID.areRivals(A.ideo, T.ideo) && aff + op * 0.5 + rng.range(-10, 15) > 5;
+    if (kind === 'aid') return !ID.areRivals(A.ideo, T.ideo) && op > -25;
+    if (kind === 'toll') return op > -15 && rng.chance(r < 0.5 ? 0.6 : 0.3);
+    return false;
+  };
+  D.noteAnswer = function (G, A, T, kind, yes) {
+    if (!A || !T || !A.alive || !T.alive) return;
+    const d = ID.dipOf(G, A.id, T.id), K = ID.NOTE_KINDS[kind];
+    if (yes) {
+      if (kind === 'treaty') { d.nap = 1; if (A.laws.trade !== 'autarky' && T.laws.trade !== 'autarky') d.trade = 1; ID.addOpBoth(G, A.id, T.id, 15); }
+      else if (kind === 'cede') {
+        const set = new Set(A.claims.filter((p) => G.provinces[p].owner === T.id));
+        if (set.size) { for (let i = 0; i < G.N; i++) if (G.owner[i] === T.id && set.has(G.prov[i]) && G.capital !== i && T.capital !== i) ID.setOwner(G, i, A.id); A.claims = A.claims.filter((p) => !set.has(p)); ID.recalcBorders(G); ID.recalcProvinceOwners(G); }
+        T.stab -= 6; ID.addOpBoth(G, A.id, T.id, -20); A.glory = Math.min(100, (A.glory || 0) + 5);
+      } else if (kind === 'bloc') { if (A.bloc && G.blocs[A.bloc]) D.joinBloc(G, T, A.bloc); else { d.nap = 1; ID.addOpBoth(G, A.id, T.id, 20); } }
+      else if (kind === 'aid') { const g = Math.min(120, Math.max(0, A.gold)); A.gold -= g; T.gold += 120; T.stab += 3; ID.addOpBoth(G, A.id, T.id, 20); }
+      else if (kind === 'toll') { ID.addMod(T, 'rev', -0.02, 120, 'Toll to ' + A.base); ID.addMod(A, 'rev', 0.03, 120, 'Toll from ' + T.base); ID.addOpBoth(G, A.id, T.id, 10); }
+    } else {
+      ID.addOpBoth(G, A.id, T.id, kind === 'cede' ? -25 : kind === 'toll' ? -15 : kind === 'treaty' ? -8 : -5);
+      if (kind === 'cede') A.flags['cbOn_' + T.id] = G.tick;
+    }
+    const verb = { treaty: yes ? 'signs a treaty with' : 'refuses a treaty with', cede: yes ? 'hands provinces to' : 'refuses to cede provinces to', bloc: yes ? 'aligns itself with' : 'declines an alliance with', aid: yes ? 'accepts aid from' : 'refuses aid from', toll: yes ? 'agrees to pay a toll to' : 'refuses to pay a toll to' }[kind];
+    if (A.id === G.player || T.id === G.player) ID.news(G, T.name + ' ' + verb + ' ' + A.name + '.', yes === (A.id === G.player) ? 'good' : 'dip', T.id, A.id);
+    if (ID.Press && (kind === 'cede' || kind === 'bloc' || ID.isMajor(G, A))) ID.Press.add(G, { w: kind === 'cede' ? (yes ? 3 : 2) : 1, kind: 'dip', a: A.id, b: T.id, art: kind === 'cede' ? 'wall' : 'peace', key: 'note' + A.id + kind + T.id, gap: 600,
+      title: T.base + ' ' + verb + ' ' + A.base,
+      text: K[1].replace(/\{F\}/g, A.name).replace(/\bus\b/g, T.name).replace(/\bour\b/g, T.adj) + ' ' + (yes ? 'The answer from ' + T.base + ' was yes.' : 'The answer from ' + T.base + ' was no.') + (kind === 'cede' && !yes ? ' ' + A.base + ' now has the cause for war it may have been looking for.' : '') });
+  };
+
+  /* ---- conspiracies: a foreign power backs one figure of the inner circle */
+  D.plotFig = (t, seat) => (t.circle || []).find((f) => f.seat === seat) || null;
+  D.plotOp = (n, t) => n.ops.find((o) => o.type === 'coup' && o.target === t.id) || null;
+  D.plotCost = (n, f) => Math.round((60 + 30 * f.comp) * (ID.ideo(n).flags.permRev ? 0.5 : 1));
+  /* How open a figure is to an approach from n: 0..100. Convictions close to ours, ambition and disloyalty all help. */
+  D.plotOpen = function (n, t, f) {
+    const mine = f.lean === n.ideo ? 30 : ID.IDEOLOGIES[f.lean] && ID.IDEOLOGIES[f.lean].family === ID.ideo(n).family ? 16 : 0;
+    return clamp((70 - f.loy) * 1.1 + (f.amb - 50) * 0.7 + mine + (f.heir ? -25 : 0), 0, 100);
+  };
+  D.plotBlock = function (G, n, t, f) {
+    if (!t.alive || t === n) return 'No such target.';
+    if (ID.ideo(t).flags.noCoup) return 'There is no officer corps there to suborn: power lies with the assemblies.';
+    if (ID.atWar(G, n.id, t.id) && false) return '';
+    if (D.plotOp(n, t)) return 'You already have a man there.';
+    if (n.ops.length >= 3) return 'Your networks are stretched: three operations at most.';
+    if ((n.cd['coup_' + t.id] || 0) > G.tick) return 'Your contacts there are lying low until ' + ID.dateOf(n.cd['coup_' + t.id]).short + '.';
+    if (f.backer && f.backer !== n.id) return 'Somebody else got to him first.';
+    if (D.plotOpen(n, t, f) < 22) return f.name + ' is loyal and content. He would report the approach.';
+    const c = D.plotCost(n, f); if (n.gold < c) return 'Needs ' + c + ' gold.';
+    return '';
+  };
+  D.plotBest = function (G, n, t) {
+    let best = null, bs = 0;
+    for (const f of t.circle || []) { if (D.plotBlock(G, n, t, f)) continue; const s = D.plotOpen(n, t, f) + (f.seat === 'army' ? 25 : f.seat === 'police' ? 12 : 0); if (s > bs) { bs = s; best = f; } }
+    return best;
+  };
+  /* The odds if the signal were given today. */
+  D.plotOdds = function (G, n, t, f) {
+    const P = ID.Politics, army = D.plotFig(t, 'army'), pol = D.plotFig(t, 'police');
+    let p = 0.12 + (f.prep || 0) * 0.006 + (P.coupOdds(G, t, true) - 0.35) * 0.6 + (f.seat === 'army' ? 0.12 : f.seat === 'police' ? 0.06 : 0);
+    if (army && army !== f && army.loy > 60) p -= 0.1; if (pol && pol !== f && pol.loy > 60) p -= 0.06;
+    if (ID.ideo(n).flags.permRev) p += 0.06;
+    return clamp(p, 0.05, 0.9);
+  };
+  /* The plot is found out: the man is gone and the paymaster is named. */
+  D.plotExposed = function (G, n, t, f, quiet) {
+    const k = n.ops.findIndex((o) => o.type === 'coup' && o.target === t.id); if (k >= 0) n.ops.splice(k, 1);
+    n.cd['coup_' + t.id] = G.tick + 3 * 360;
+    if (f && t.circle && t.circle.indexOf(f) >= 0) ID.Regime.replace(G, t, f, { loy: G.rng.int(62, 80) });
+    ID.addOpBoth(G, n.id, t.id, -35); t.sm.military += 5; n.threat += 3;
+    if (!quiet) ID.news(G, t.name + ' exposes a foreign-backed plot and blames ' + n.name + '.', 'dip', t.id, n.id);
+    if (n.id === G.player) { ID.sfx(G, 'bad'); ID.headline(G, { kicker: 'Our man is taken', title: 'The plot in ' + t.base + ' is blown', sub: (f ? f.name : 'Our contact') + ' has been arrested. ' + t.name + ' names us as paymaster.', a: t.id, b: n.id, tone: 'bad' }); }
+    if (ID.Press) ID.Press.coupFails(G, t, n.id);
+  };
+  /* Give the signal. Returns '' or the reason it cannot be given. */
+  D.plotSignal = function (G, n, t) {
+    const o = D.plotOp(n, t); if (!o) return 'You have no conspiracy there.';
+    const f = D.plotFig(t, o.seat);
+    if (!f || f.backer !== n.id || f.name !== o.name) return 'Your man is gone.';
+    if ((f.prep || 0) < 30) return 'Too early: the conspiracy is not yet a third ready.';
+    const p = D.plotOdds(G, n, t, f);
+    n.ops.splice(n.ops.indexOf(o), 1); n.cd['coup_' + t.id] = G.tick + 4 * 360;
+    f.backer = 0;
+    ID.news(G, 'Before dawn, units loyal to ' + f.name + ' move on the ministries of ' + t.name + '.', 'pol', t.id);
+    if (t.id === G.player && !G.autoPlayer) { t.a.coupAt = G.tick; t.a.coupBoost = p; ID.Events.queue(G, t, 'coup', { backer: n.id, fig: f.name }); return ''; }
+    if (!G.rng.chance(p)) {
+      ID.Regime.replace(G, t, f, { loy: G.rng.int(64, 82) });
+      t.stab -= 4; t.sm.military += 8; t.flags.coupSurvived = 1; ID.addOpBoth(G, n.id, t.id, -45); n.threat += 4;
+      ID.news(G, 'The coup in ' + t.name + ' fails. ' + f.name + ' is shot; ' + n.name + ' is named as paymaster.', 'dip', t.id, n.id);
+      if (n.id === G.player) { ID.sfx(G, 'bad'); ID.headline(G, { kicker: 'It has failed', title: 'The coup in ' + t.base + ' collapses', sub: f.name + ' is dead and our part in it is known in every capital.', a: t.id, b: n.id, tone: 'bad' }); }
+      if (ID.Press) ID.Press.coupFails(G, t, n.id);
+      return '';
+    }
+    // success: our man rules, and he remembers who paid
+    const P = ID.Politics, to = P.coupIdeo(G, t, n.id), old = t.leader.name, man = { name: f.name, age: f.age, seat: f.seat };
+    ID.Regime.makeLeader(G, t, f);
+    t.a.coupAt = G.tick;
+    if (to !== t.ideo) { P.changeIdeology(G, t, to, 'coup', n.id); t.leader.name = man.name; t.leader.age = man.age; t.leader.from = man.seat; }
+    else { t.stab -= 8; ID.chron(G, 'coup', f.name + ' overthrows ' + old + ' of ' + t.name + ' with the help of ' + n.name + '.', t.id, n.id); n.cnt.exported = (n.cnt.exported || 0) + 1; if (ID.Press) ID.Press.palace(G, t, { name: f.name, title: 'high office' }, true, null); }
+    ID.addOpBoth(G, n.id, t.id, 45);
+    for (const e of D.enemies(G, t)) if (e === n) D.peace(G, n, t);
+    const d = ID.dipOf(G, n.id, t.id); d.embargo = 0;
+    if (n.bloc && !ID.areRivals(n.ideo, t.ideo) && ID.ideoAffinity(n.ideo, t.ideo) > -5) { if (t.bloc !== n.bloc) D.joinBloc(G, t, n.bloc); }
+    else { d.nap = 1; if (n.laws.trade !== 'autarky' && t.laws.trade !== 'autarky') d.trade = 1; }
+    n.cnt.coupsWon = (n.cnt.coupsWon || 0) + 1; n.glory = Math.min(100, n.glory + 4);
+    if (n.id === G.player) { ID.sfx(G, 'good'); ID.headline(G, { kicker: 'Our man in ' + t.base, title: f.name + ' takes power', sub: 'The ministries fell before breakfast. The new government of ' + t.name + ' knows who its friends are.', a: n.id, b: t.id, tone: 'good' }); }
+    return '';
+  };
+  /* Spend to hurry it along. */
+  D.plotBoost = function (G, n, t) {
+    const o = D.plotOp(n, t); if (!o) return 'You have no conspiracy there.';
+    const f = D.plotFig(t, o.seat); if (!f || f.backer !== n.id) return 'Your man is gone.';
+    if (n.gold < 100) return 'Needs 100 gold.';
+    if ((o.boostAt || -999) > G.tick - 180) return 'The garrison has been paid once this half-year. More would be noticed.';
+    n.gold -= 100; o.boostAt = G.tick; f.prep = Math.min(100, (f.prep || 0) + 20); o.heat = (o.heat || 0) + 0.04;
+    return '';
+  };
   D.opsMonth = function (G, n) {
     if (!n.ops.length) return;
     const I = ID.ideo(n);
     for (let k = n.ops.length - 1; k >= 0; k--) {
       const o = n.ops[k], t = G.nations[o.target];
-      if (!t || !t.alive || (n.gold <= 0 && n.debt > 0)) { n.ops.splice(k, 1); continue; }
+      if (!t || !t.alive || (n.gold <= 0 && n.debt > 0)) { if (o.type === 'coup' && t) { const f0 = D.plotFig(t, o.seat); if (f0 && f0.backer === n.id) { f0.backer = 0; f0.prep = 0; } } n.ops.splice(k, 1); continue; }
+      if (o.type === 'coup') {
+        const f = D.plotFig(t, o.seat), isP = n.id === G.player && !G.autoPlayer;
+        if (!f || f.backer !== n.id || f.name !== o.name || ID.ideo(t).flags.noCoup) { n.ops.splice(k, 1); if (isP) ID.news(G, 'Your man in ' + t.name + ', ' + o.name + ', is gone from the inner circle. The conspiracy is over.', 'bad', n.id, t.id); continue; }
+        const sec = ID.LAWS.security.opts[t.laws.security], pol = D.plotFig(t, 'police');
+        f.prep = Math.min(100, (f.prep || 0) + (6 + f.amb * 0.07 + (t.stab < 40 ? 4 : 0) + (t.a.losing ? 3 : 0)) * (1 - sec.detect * 0.5) * (I.flags.permRev ? 1.4 : 1));
+        f.loy = Math.max(0, f.loy - 3); f.plot = Math.max(f.plot || 0, f.prep * 0.05);
+        // their police may find it
+        const watch = 0.008 + sec.detect * 0.03 + (pol && pol !== f ? Math.max(0, ID.Regime.scale(pol)) * 0.012 : 0) + (o.heat || 0);
+        if (G.rng.chance(watch)) {
+          if (t.id === G.player && !G.autoPlayer) { t.a.knownOps = t.a.knownOps || {}; t.a.knownOps[n.id] = G.tick; f.warned = 1; if (!ID.Events.pending(G, 'rg_plot')) ID.Events.queue(G, t, 'rg_plot', { seat: f.seat, name: f.name, foreign: n.id }); }
+          else { D.plotExposed(G, n, t, f); continue; }
+        }
+        // an AI paymaster gives the signal when the odds are fair or the moment is ripe
+        if (!isP) {
+          const odds = D.plotOdds(G, n, t, f);
+          if ((f.prep >= 70 || (f.prep >= 45 && t.stab < 35)) && odds > 0.3) D.plotSignal(G, n, t);
+          else if (f.prep >= 100 && G.tick - o.since > 420) D.stopOp(G, n, k); // it will never be ripe: withdraw quietly
+        }
+        continue;
+      }
       if (o.type !== 'fund') continue;
       const sec = ID.LAWS.security.opts[t.laws.security], press = ID.LAWS.press.opts[t.laws.press];
       const mult = (0.6 + I.dip.export) * (I.flags.permRev ? 2 : 1) * (1 + press.infl) * (1 - sec.repress * 0.35) * (t.id === G.player ? ID.DIFFICULTY[G.difficulty].subvert : 1);
@@ -430,7 +585,14 @@
     const names = Object.keys(hit).map((k) => G.nations[+k].name).join(', ');
     ID.news(G, 'ATOMIC STRIKE: ' + A.name + ' destroys a region of ' + (names || 'empty land') + '.', 'bad', A.id);
     ID.chron(G, 'nuke', A.name + ' uses an atomic weapon against ' + (names || 'no one') + '.', A.id);
-    ID.headline(G, { kicker: 'A new kind of war', title: 'Atomic strike', sub: A.name + ' has destroyed a region of ' + (names || 'empty land') + ' with a single weapon.', a: A.id, tone: 'bad' });
+    // the front page is for the first bomb, and for the first of each new war: after that the world has no words left
+    const first = !G.world.nuked; G.world.nuked = (G.world.nuked || 0) + 1;
+    const fresh = !A.a.nukeHl || G.tick - A.a.nukeHl > 1080;
+    if (first || fresh) {
+      A.a.nukeHl = G.tick;
+      ID.headline(G, first ? { kicker: 'A new kind of war', title: 'Atomic strike', sub: A.name + ' has destroyed a region of ' + (names || 'empty land') + ' with a single weapon.', a: A.id, tone: 'bad' } : { kicker: 'The bomb again', title: A.base + ' strikes', sub: 'A second atomic war. ' + (names || 'Empty land') + ' burns.', a: A.id, tone: 'bad' });
+      if (ID.Press) ID.Press.add(G, { w: first ? 5 : 3, kind: 'nuke', a: A.id, title: first ? 'A city gone in a single flash' : A.base + ' uses the bomb again', text: A.name + ' has used an atomic weapon against ' + (names || 'empty land') + '. ' + (first ? 'No weapon like it has been used before. Observers who reached the edge of the zone report nothing standing for miles and a sickness among the survivors that the doctors cannot name. Every chancellery in the world met in emergency session within the day.' : 'It is no longer the first time, and the dispatches are shorter. The dead are not fewer.') });
+    }
     for (const k in hit) { G.nations[+k].a.nukedBy = A.id; G.nations[+k].a.nukedAt = G.tick; }
   };
 

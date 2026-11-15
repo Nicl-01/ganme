@@ -54,7 +54,9 @@
   };
   /* Objectives: the tile an offensive drives toward. */
   C.OBJK = 0.5;
-  C.objOf = (G, A, to) => { const t = A.objs && A.objs[to]; return t != null && G.owner[t] === to ? t : -1; };
+  /* A much stronger attacker meets a whole nation in arms: defence up to +35%. */
+  C.underdog = (A, D) => { const r = ID.Diplomacy.power(A) / Math.max(1, ID.Diplomacy.power(D)); return r > 1.6 ? 1 + Math.min(0.35, (r - 1.6) * 0.1) : 1; };
+  C.objOf = (G, A, to) => { const t = A.objs && A.objs[to]; return t != null && G.owner[t] === to && ID.atWar(G, A.id, to) ? t : -1; };
   C.setObjective = function (G, n, tile) {
     const o = G.owner[tile]; if (!o || o === n.id) return 'Pick enemy land.';
     if (!ID.atWar(G, n.id, o)) return 'You are not at war with ' + G.nations[o].name + '.';
@@ -188,9 +190,15 @@
     if (!A.alive || !D.alive || !ID.atWar(G, a.from, a.to)) { endAttack(G, a, true); return; }
     if (a.troops < 0.5) { endAttack(G, a, false); return; }
     const W = G.W, H = G.H, own = G.owner, terr = G.terrain, mark = G._mark, rng = G.rng;
-    if (G.tick - a.scan > 25) seedFrontier(G, a);
+    if (G.tick - a.scan > (a.heap.size ? 25 : 4)) seedFrontier(G, a);
     const heap = a.heap;
-    if (!heap.size) { if (++a.idle > 50) endAttack(G, a, true); return; }
+    if (!heap.size) {
+      if (++a.idle > 14) {
+        if (a.from === G.player) ID.news(G, 'No front is left against ' + D.name + ': ' + ID.fmtPop(a.troops) + ' troops return to the reserve. Reach them again by land or with a naval landing.', 'war', A.id, D.id);
+        endAttack(G, a, true);
+      }
+      return;
+    }
     a.idle = 0;
     const S = ID.STYLES[a.style], e = ID.ideo(A).doctrine.styles[a.style] || 1;
     if (S.goldDay) { A.gold -= S.goldDay * (1 + a.troops / 400); if (A.gold < -50) a.style = 'advance'; }
@@ -223,7 +231,7 @@
     const rate = BASE_RATE * Math.sqrt(Math.min(heap.size, 500) + 4) * clamp(0.25 + 0.6 * ratio, 0.3, 1.8) * S.speed * e * share * (1 + 0.04 * A.tech.mil) * spd;
     a.prog = Math.min(a.prog + rate, 40);
     const dd = D.troops / Math.max(D.tiles, 40);
-    const atk = A.a.atk * e, def = D.a.def;
+    const atk = A.a.atk * e, def = D.a.def * C.underdog(A, D);
     const igT = S.ignoreTerrain || 0, igF = S.ignoreFort || 0;
     const holdFast = Dd.holdFast && ratio > 1 ? 1 + Dd.holdFast : 1;
     const depthK = (C.POSTURE[D.posture] || {}).depth ? (D.flags.ld_depth ? 1.6 : 1.3) : 1;
@@ -258,7 +266,7 @@
       if (P.opp && P.oppStr > 30 && ID.ideo(A).flags.liberator && ID.IDEOLOGIES[P.opp].family === ID.ideo(A).family) amul *= 1.2;
       const cutT = G.cut[i] === 1;
       let la = dd * tdef * (dmul / amul) * lossMul * alossK * (cutT ? cutK : 1);
-      if (a.amphib > 0) { la *= 1.5; a.amphib--; }
+      if (a.amphib > 0) { la *= 1.3; a.amphib--; }
       if (la < 0.012) la = 0.012;
       const ld = Math.min(D.troops, dd * (cutT ? 1.0 : 0.55) * S.lossD * dlossK * Math.sqrt(clamp(amul / dmul, 0.4, 2.5)));
       a.troops -= la; A.pop -= la; A.losses += la; D.kills += la; A.casM += la;
@@ -302,13 +310,32 @@
   };
 
   /* ---------------------------------------------------------------- naval */
+  C.BOAT_SPEED = 2;
   C.navalRange = (G, n) => ID.ERAS[ID.eraOf(G.tick)].range * (ID.ideo(n).flags.navalPower ? 1.4 : 1);
+  /* Sea power: ports, a seafaring system, technology and naval programmes. It decides how much of a
+     convoy arrives and how hard the beach is: a strong navy guards its own coast and lands cheaply on others'. */
+  C.seaPower = (n) => (n.nb[B.PORT] || 0) * (ID.ideo(n).flags.navalPower ? 1.8 : 1) * (ID.ideo(n).doctrine.naval || 1) * (1 + 0.08 * n.tech.mil) * Math.max(0.3, 1 + ID.mod(n, 'navy'));
+  C.crossing = function (A, D) {
+    const r = D ? C.seaPower(D) / Math.max(0.5, C.seaPower(A)) : 0;
+    return { ratio: r, sunk: clamp(0.11 * r, 0, 0.5), costK: Math.sqrt(clamp(r, 0.45, 2.2)) };
+  };
+
+  /* Beachheads: the tile a landing came ashore on supplies everything joined to it by land, like a
+     small port, for as long as its owner holds it. G.beach = [{i, o, t}]. */
+  C.addBeach = function (G, i, o) {
+    const L = G.beach || (G.beach = []);
+    for (const b of L) if (b.i === i) { b.o = o; b.t = G.tick; return; }
+    L.push({ i, o, t: G.tick });
+    if (L.length > 240) L.shift();
+    if (!G.headless) G.dirty.push(i);
+  };
+  C.isBeach = (G, i) => { const L = G.beach; if (L) for (const b of L) if (b.i === i && G.owner[i] === b.o) return true; return false; };
 
   /* Plan a route from one of n's ports to the coast tile `target`. Returns {path} or a reason string. */
   C.planBoat = function (G, n, target) {
     if (!n.nb[B.PORT]) return 'You need a port to launch a landing.';
     if (G.terrain[target] === T.SEA) return 'Pick a coastal land tile.';
-    if (G.owner[target] === n.id) return 'That coast is already yours.';
+    if (G.owner[target] === n.id && G.cut[target] !== 1) return 'That coast is already yours.';
     const tsea = ID.seaNeighbors(G, target);
     if (!tsea.length) return 'A landing needs a coastal tile.';
     const range = C.navalRange(G, n);
@@ -318,7 +345,7 @@
       if (G.bld[i] !== B.PORT || G.owner[i] !== n.id || G.cut[i] === 1) continue;
       for (const s of ID.seaNeighbors(G, i)) if (dist[s] >= 0 && dist[s] < bd) { bd = dist[s]; best = s; bport = i; }
     }
-    if (best < 0) return 'No sea route within range (' + Math.round(range) + ').';
+    if (best < 0) return 'No sea route within range (' + Math.round(range) + ' tiles from one of your ports).';
     const path = [bport, best]; let c = best; const W = G.W;
     while (dist[c] > 0) {
       const d = dist[c]; let nx = -1;
@@ -327,6 +354,28 @@
     }
     path.push(target);
     return { path };
+  };
+  /* The best place to come ashore against e: close to our ports, away from fortresses, on a port if there is one. */
+  C.bestLanding = function (G, n, e, jitter) {
+    if (!n.nb[B.PORT]) return -1;
+    const starts = [];
+    for (const i of G.blist) if (G.bld[i] === B.PORT && G.owner[i] === n.id && G.cut[i] !== 1) for (const s of ID.seaNeighbors(G, i)) starts.push(s);
+    if (!starts.length) return -1;
+    const dist = ID.seaDistance(G, starts, C.navalRange(G, n));
+    const W = G.W, H = G.H, own = G.owner, terr = G.terrain, cx = e.capital % W, cy = (e.capital / W) | 0;
+    let best = -1, bs = 1e9;
+    for (let i = 0; i < G.N; i++) {
+      if (own[i] !== e.id || !G.coast[i]) continue;
+      const x = i % W, y = (i / W) | 0; let d = 1e9;
+      if (x > 0 && terr[i - 1] === T.SEA && dist[i - 1] >= 0 && dist[i - 1] < d) d = dist[i - 1];
+      if (x < W - 1 && terr[i + 1] === T.SEA && dist[i + 1] >= 0 && dist[i + 1] < d) d = dist[i + 1];
+      if (y > 0 && terr[i - W] === T.SEA && dist[i - W] >= 0 && dist[i - W] < d) d = dist[i - W];
+      if (y < H - 1 && terr[i + W] === T.SEA && dist[i + W] >= 0 && dist[i + W] < d) d = dist[i + W];
+      if (d > 1e8) continue;
+      const sc = d + (G.fortCov[i] === e.id ? 90 : 0) + (G.bld[i] === B.PORT ? -30 : G.bld[i] === B.CITY ? 25 : 0) + TERR[terr[i]].def * 8 + Math.hypot(x - cx, y - cy) * 0.25 + (jitter ? G.rng.next() * 8 : 0);
+      if (sc < bs) { bs = sc; best = i; }
+    }
+    return best;
   };
   C.launchBoat = function (G, n, target, troops, style) {
     const plan = C.planBoat(G, n, target); if (typeof plan === 'string') return plan;
@@ -337,37 +386,71 @@
     if (n.id === G.player) ID.sfx(G, 'boat');
     return bt;
   };
+  /* The first wave takes the beach itself: open enemy ground within two tiles of the landing point. */
+  function seize(G, target, to, max) {
+    const W = G.W, H = G.H, own = G.owner, x0 = target % W, y0 = (target / W) | 0;
+    const got = [target], seen = new Set(got);
+    for (let k = 0; k < got.length && got.length < max; k++) {
+      const c = got[k], x = c % W, y = (c / W) | 0;
+      for (const q of [x > 0 ? c - 1 : -1, x < W - 1 ? c + 1 : -1, y > 0 ? c - W : -1, y < H - 1 ? c + W : -1]) {
+        if (q < 0 || seen.has(q) || own[q] !== to || G.terrain[q] === T.SEA) continue;
+        const dx = (q % W) - x0, dy = ((q / W) | 0) - y0; if (dx * dx + dy * dy > 6.5) continue;
+        if (to && (G.fortCov[q] === to || G.bld[q] === B.CITY || G.bld[q] === B.FORT)) continue;
+        seen.add(q); got.push(q); if (got.length >= max) break;
+      }
+    }
+    return got;
+  }
   function landBoat(G, bt) {
     const A = G.nations[bt.owner]; if (!A.alive) return;
     const to = G.owner[bt.target];
     if (!to && G.terrain[bt.target] !== T.SEA) {
-      ID.setOwner(G, bt.target, bt.owner);
+      for (const q of seize(G, bt.target, 0, 9)) ID.setOwner(G, q, bt.owner);
+      C.addBeach(G, bt.target, bt.owner);
       const a = C.launch(G, bt.owner, 0, 0, 'advance', true);
       A.troops += bt.troops;
       if (a && typeof a !== 'string') { a.troops += bt.troops * 0.9; a.committed += bt.troops; A.troops -= bt.troops * 0.9; seedWild(G, a); }
       ID.fx(G, 'land', bt.target);
-      if (A.id === G.player) ID.news(G, 'Settlers come ashore on unclaimed land.', 'good', A.id);
+      if (A.id === G.player) ID.news(G, 'Settlers come ashore on unclaimed land. The beach will supply them.', 'good', A.id);
       return;
     }
-    if (to === bt.owner || !to || !ID.atWar(G, bt.owner, to)) { A.troops += bt.troops; return; }
+    if (to === bt.owner) { // relief by sea: a cut-off coast gets a beachhead
+      A.troops += bt.troops;
+      if (G.cut[bt.target] === 1) { C.addBeach(G, bt.target, bt.owner); if (A.id === G.player) ID.news(G, 'Relief convoys reach the pocket: it is supplied by sea again.', 'good', A.id); ID.fx(G, 'land', bt.target); }
+      return;
+    }
+    if (!to || !ID.atWar(G, bt.owner, to)) { A.troops += bt.troops; return; }
     const D = G.nations[to];
+    const cr = C.crossing(A, D);
+    if (cr.sunk > 0.02) { // the defender's navy meets the convoy
+      const sunk = bt.troops * cr.sunk * (0.6 + 0.4 * G.rng.next());
+      bt.troops -= sunk; A.pop -= sunk; A.losses += sunk; A.casM += sunk; D.kills += sunk;
+      if ((A.id === G.player || D.id === G.player) && sunk > 0.5) ID.news(G, (D.id === G.player ? 'Our navy catches a ' + A.adj + ' convoy' : 'The ' + D.adj + ' navy catches our convoy') + ': ' + ID.fmtPop(sunk) + ' troops go down with their transports.', D.id === G.player ? 'good' : 'war', A.id, D.id);
+    }
     const dd = D.troops / Math.max(D.tiles, 40);
     const naval = ID.ideo(A).doctrine.naval || 1;
     const fort = G.fortCov[bt.target] === to ? 2.5 : 1;
-    const cost = (dd * 3 * fort * TERR[G.terrain[bt.target]].def * D.a.def / A.a.atk + 0.5) / naval;
-    if (bt.troops <= cost * 1.2) {
-      A.pop -= bt.troops; A.losses += bt.troops; A.casM += bt.troops; D.kills += bt.troops;
-      ID.news(G, 'A ' + A.adj + ' landing is thrown back into the sea by ' + D.name + '.', 'war', A.id, D.id);
+    const cost = (dd * 2.2 * fort * TERR[G.terrain[bt.target]].def * D.a.def / A.a.atk + 0.4) * cr.costK;
+    if (bt.troops <= cost * 1.1) {
+      const lost = bt.troops * 0.6; A.troops += bt.troops - lost;
+      A.pop -= lost; A.losses += lost; A.casM += lost; D.kills += lost;
+      ID.news(G, 'A ' + A.adj + ' landing is thrown back into the sea by ' + D.name + '. ' + ID.fmtPop(lost) + ' are lost; the rest sail home.', 'war', A.id, D.id);
       if (A.id === G.player) ID.sfx(G, 'bad');
       return;
     }
     A.pop -= cost; A.losses += cost; A.casM += cost;
-    ID.setOwner(G, bt.target, bt.owner);
+    const beach = seize(G, bt.target, to, 12), war = ID.Diplomacy.warOf(G, bt.owner, to);
+    for (const q of beach) ID.setOwner(G, q, bt.owner);
+    if (war) { if (war.a === bt.owner) war.ta += beach.length; else war.tb += beach.length; }
+    C.addBeach(G, bt.target, bt.owner);
+    ID.recalcBorders(G);
     A.troops += bt.troops - cost;
-    const a = C.launch(G, bt.owner, to, bt.troops - cost, bt.style, true);
-    if (a && typeof a !== 'string') { a.amphib = Math.round(24 / naval); seedFrontier(G, a); }
-    ID.news(G, A.adj + ' troops land on the coast of ' + D.name + '.', 'war', A.id, D.id);
+    const a = D.alive ? C.launch(G, bt.owner, to, bt.troops - cost, bt.style, true) : null;
+    if (a && typeof a !== 'string') { a.amphib = Math.round(12 / naval); a.surge = Math.max(a.surge || 0, G.tick + 30); seedFrontier(G, a); }
+    ID.news(G, A.adj + ' troops land on the coast of ' + D.name + ' and hold a beachhead.', 'war', A.id, D.id);
+    if (D.id === G.player) { ID.headline(G, { kicker: 'Invasion from the sea', title: 'They are ashore', sub: A.name + ' has landed troops on our coast. Take the beach back and the landing starves.', a: A.id, b: D.id, tone: 'war' }); }
     ID.fx(G, 'land', bt.target);
+    if (D.tiles <= 0) ID.Diplomacy.eliminate(G, D, A);
   }
 
   /* ---------------------------------------------------------------- strategic weapons */
@@ -551,7 +634,9 @@
     const main = new Int32Array(G.nations.length).fill(-1);
     comps.forEach((c, id) => { if (c.hasCap) main[c.o] = id; });
     comps.forEach((c, id) => { if (main[c.o] < 0 || (!comps[main[c.o]].hasCap && c.size > comps[main[c.o]].size)) main[c.o] = id; });
-    comps.forEach((c, id) => { c.st = main[c.o] === id ? 0 : c.hasPort ? 2 : 1; });
+    const beach = G.beach || (G.beach = []);
+    for (let k = beach.length - 1; k >= 0; k--) { const b = beach[k]; if (own[b.i] !== b.o || comp[b.i] < 0) { beach.splice(k, 1); continue; } comps[comp[b.i]].hasBeach = true; }
+    comps.forEach((c, id) => { c.st = main[c.o] === id ? 0 : c.hasPort || c.hasBeach ? 2 : 1; });
     const cut = G.cut, age = G.cutAge;
     let anyCut = false;
     for (let i = 0; i < N; i++) {
@@ -562,16 +647,16 @@
       if (st === 1) { if (age[i] < 250) age[i]++; anyCut = true; } else age[i] = 0;
     }
     if (!anyCut) return;
-    // collapse pockets
+    // pockets: an overseas holding no enemy touches is supplied over its own beach; an encircled one collapses
     for (let id = 0; id < comps.length; id++) {
       const c = comps[id]; if (c.st !== 1) continue;
-      const n = G.nations[c.o]; if (!n.alive || !n.nwars) continue;
+      const n = G.nations[c.o]; if (!n.alive) continue;
       const fl = ID.ideo(n).flags; const hold = (fl.noDecap || fl.partisans ? 12 : 4) * (n.a.dp && n.a.dp.logistics ? 2 : 1);
-      if (!(c.size <= 4 || age[c.start] >= hold)) continue;
       // collect tiles + adjacent enemies
-      const tiles = []; const adj = {}; let sp = 0; stack[sp++] = c.start; comp[c.start] = -2;
+      const tiles = []; const adj = {}; let sp = 0, shore = -1; stack[sp++] = c.start; comp[c.start] = -2;
       while (sp) {
         const t = stack[--sp]; tiles.push(t); const x = t % W;
+        if (shore < 0 && G.coast[t]) shore = t;
         for (const q of [x > 0 ? t - 1 : -1, x < W - 1 ? t + 1 : -1, t >= W ? t - W : -1, t < N - W ? t + W : -1]) {
           if (q < 0) continue; const oo = own[q];
           if (oo === c.o) { if (comp[q] === id) { comp[q] = -2; stack[sp++] = q; } }
@@ -579,7 +664,8 @@
         }
       }
       let win = 0, wb = 0; for (const k in adj) if (adj[k] > wb) { wb = adj[k]; win = +k; }
-      if (!win) continue;
+      if (!win) { if (shore >= 0) { C.addBeach(G, shore, c.o); for (const t of tiles) { cut[t] = 2; age[t] = 0; if (!G.headless && G.mapMode === 'supply') G.dirty.push(t); } } continue; }
+      if (!n.nwars || !(c.size <= 4 || age[c.start] >= hold)) continue;
       const share = tiles.length / Math.max(1, n.tiles);
       const lost = n.troops * Math.min(0.9, share * 0.9);
       n.troops -= lost; n.pop -= lost * 0.3; n.losses += lost; n.casM += lost * 0.6; G.nations[win].kills += lost;
@@ -602,7 +688,7 @@
     for (let k = at.length - 1; k >= 0; k--) { if (k < at.length) { if (at[k].to === 0) processExpand(G, at[k]); else processAttack(G, at[k]); } }
     if (G.boats.length) {
       for (let k = G.boats.length - 1; k >= 0; k--) {
-        const bt = G.boats[k]; bt.pos += 1.3;
+        const bt = G.boats[k]; bt.pos += C.BOAT_SPEED;
         if (bt.pos >= bt.path.length - 1) { G.boats.splice(k, 1); landBoat(G, bt); }
       }
     }

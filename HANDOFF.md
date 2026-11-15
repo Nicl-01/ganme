@@ -416,6 +416,63 @@ country; the storyline should branch more and react to choices; more narrative, 
   (updated for the three-way history setting), `flows.js`, `perf.js`; `/tmp/diag/doc.js`,
   `docpush.js` (gauge equilibria), `collapse.js`, `lowstab.js`, `east.js`, `hes.js`, `reform.js`.
 
+## Session 9: supply and landings, The World Dispatch, secret roads, conspiracies, balance
+
+Feedback (playing Lys): conquered islands lost supply at once; landings were thrown out with no
+opposition and the troops went invisible; supply vanished mid-invasion; objective marker stayed
+after peace; the Thalassocracy could still go Classical Liberal; atomic headlines on every strike;
+superevents felt random (wanted HOI4-style newspapers about other countries); programmes should
+involve other countries; better sponsored coups; nerf Karsova; repetitive random events; small
+powers should be able to compete with skill; equipment and supply unclear. Plus: secret endings
+with secret ideologies. Work was started under Fable and finished under Opus.
+
+- **Supply and landings** (`sim/combat.js`): beachheads `G.beach = [{i, o, t}]` supply every tile
+  joined to them by land (state 2, like a port); an overseas holding no enemy touches gets a
+  beachhead automatically, so it is never cut off in peacetime or away from the front; only real
+  encirclements collapse. Landings: `C.planBoat`, `C.bestLanding` (the "Land in X" button when there
+  is no land front; AI uses it too), `seize()` takes the beach (up to 12 tiles), then a normal attack
+  launches from it with a 30-day surge; boats move 2 tiles a day. Sea power `C.seaPower(n)` (ports ×
+  seafaring × doctrine.naval × tech × `navy` mod channel) decides how much of a convoy the defender
+  sinks (`C.crossing`: 11% per ratio point, max 50%) and the beach cost. Attacks with no front left
+  return to the pool after 14 days with a news line. Map: beachhead markers; Army panel: a Supply
+  section and an Equipment tooltip that shows need vs paid (`n.a.armsNeed`, `armsPaid`, `eqTarget`).
+- **Fixes**: objectives exist only while the war does (`C.objOf` checks `atWar`, peace deletes
+  `objs`, boats to that enemy are recalled); a reached destiny rules out any programme that would
+  change the ideology to something else (`Fo.block`/`Fo.state`); nukes: 900 gold, 18-month cooldown,
+  two per silo, one front page per bomber per three years.
+- **The World Dispatch** (`sim/press.js`, `data/press.js`, `ui/press.js`): stories from other
+  countries collected in `G.press.q` (revolutions, coups, failed coups, wars, peaces, conquests,
+  civil wars, deaths, palace coups, session lines of great powers, other governments' choices in
+  story/national dispatches, destinies, blocs, the slump, notes) and printed as editions (a lead and
+  four briefs, a balance-of-power box). `ID.PRESS_PRE[beatId]` (53) prints what is building up a
+  few months before each dated chapter; `ID.PRESS_NOW` (7) prints world chapters. Settings: every
+  issue / great events only / never pop up; back issues under World.
+- **Secret roads** (`sim/secret.js`, historical, player only): Pavon "The Fortress" (Anti-
+  Revisionism, ending "The Last Fortress"), Lys "The Ledger" (Bancocracy, "The Bank of the World"),
+  Meridia "The Model" (Algocracy, "The Last Decision"), Karsova "Red Star" (Cosmism, "Red Star").
+  Each: a hidden trigger (`when`), a reveal dispatch `sec_<key>`, a secret programme tab
+  (`ID.FOCUS.secret`, `f.secret`), a secret ideology cloned from a parent (in `ID.IDEOLOGIES`, not
+  in `ID.IDEO_LIST`; doctrine/regime tables aliased) whose objective is the ending; the end screen
+  shows "A SECRET ENDING" with `I.ending`. Test: `/tmp/diag/secret.js`, `/home/claude/scripts/secretui.js`.
+- **Conspiracies** (`sim/diplomacy.js` `D.plot*`, Foreign panel): "Back a coup" is now a
+  conspiracy around one named member of the target's inner circle: approach (cost by competence;
+  openness from loyalty, ambition, shared convictions), monthly preparation, their police may find
+  it, pay the garrison, give the signal (odds shown). Success makes your man leader, ends the war,
+  brings the country into your bloc or a pact. AI runs them too (~3.5 successes per 40-year run).
+- **Foreign programmes** (`data/foreign.js`): two exclusive programmes per historical country aimed
+  at named neighbours, acting through diplomatic notes (`['note2', base, kind]`: treaty, cede, bloc,
+  aid, toll). The player answers notes as dispatches (`fp_note`); AI weighs power and opinion
+  (`D.noteWould`). Answers are printed in the paper.
+- **Event variety** (`data/variety.js`): 56 alternative tellings of the 26 most common dispatches
+  (`d.variants`, ctx.v, never the same telling twice running), 30 new dispatches, themes so two on
+  one subject do not come back to back, and a repeat damper (`n.a.evN`).
+- **Balance**: overstretch (over 7% of the world's land: up to −12% output, −8% attack, +4 unrest)
+  and "small and well run" (under 3.5%: efficiency, science, defence, trade) refreshed each year as
+  labelled mods (`Rg.sizeMods`); underdog defence up to +35% against a much stronger attacker
+  (`C.underdog`, shown on the war cards); Karsova starts with "The backward giant" and related
+  mods (`ID.NATIONAL.Karsova.mods`). Karsova's 1950 land share ~15% (was ~19%).
+- 221 events, 735 programmes. Tools: `/tmp/diag/files.js` lists the load order for headless tests.
+
 ## Session 8: the regime, national questions, strategic combat, the banner
 
 Feedback: longer and more impactful programme trees; more strategic combat; more specialisation
@@ -473,7 +530,7 @@ in free play.
 
 ## Published (end of session 2)
 
-- Playable artifact: slug `b44285db-2e8b-4266-bfe0-39315542a8b3` (https://claude.ai/artifact/PG38qVqd6iMyayLf4gaVKx), live version `1794687716-22f3` after session 8,
+- Playable artifact: slug `b44285db-2e8b-4266-bfe0-39315542a8b3` (https://claude.ai/artifact/PG38qVqd6iMyayLf4gaVKx), live version `LIVEVER` after session 9,
   published from files (index.html, css, js, fonts). To update after edits, republish with
   `publish_files` using the slug and the live version from `get_artifact`.
 - GitHub Pages zip: `/home/claude/iron-dialectic.zip` (rebuild with the zip command in the session log:

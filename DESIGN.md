@@ -129,6 +129,14 @@ before it is about any ideology. Free campaigns and random worlds keep the circl
 but drop the national casts, questions, projects and chapters, which only make sense in the
 story they were written for.
 
+### The world beyond your borders (added in session 9)
+The player should know what the rest of the world is doing and why. The World Dispatch turns other
+countries' revolutions, coups, wars and choices into front pages, and runs the build-up to each
+dated chapter months before it arrives, so the great events read as the end of something. Foreign
+programmes and diplomatic notes make the other countries answer you; conspiracies give a small
+state a way to change a large one. Sprawl costs, and a small state that is well run gets more out
+of each province: skill, not size, should decide.
+
 ### Combat in five sentences
 Troops are a share of your population set by the mobilisation slider; soldiers are not
 workers. To attack, pick a neighbour you are at war with, set the commit slider, choose a
@@ -265,6 +273,9 @@ js/ui/programme.js    Programme panel, the programme tree, history timeline, han
 js/ui/advice.js       the ministers' Report: ranked problems, causes and one-click levers
 js/ui/doctrine.js     doctrine card, leader traits, the doctrine at war, Doctrines handbook page
 js/ui/regime.js       the Regime panel: inner circle, session line, national question; alerts and Report items
+js/ui/press.js        The World Dispatch: the front page, back issues
+js/sim/press.js       stories from other countries and the editions they are printed in
+js/sim/secret.js      the four secret roads: triggers, tabs, secret ideologies and endings
 js/ui/nation.js       Nation screen and superevents; scenes.js paints their scenes
 js/ui/tray.js         dispatch tray (ordinary dispatches wait while the clock runs)
 js/ui/madness.js      screen effects for absolute monarchs and personal dictators

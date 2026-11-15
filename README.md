@@ -60,6 +60,14 @@ machine, change it in **Settings**.
   national question (Aurelia's land, Pavon's fortress of bunkers, Karsova's villages, Suyan's
   river, Lys's toll on the straits...) with national actions, turning points at each end and a
   national project in the programme tree that pulls it one way or the other.
+- **The World Dispatch**: a newspaper reports what happens in other countries (revolutions, coups,
+  wars, the choices other governments make) and, before each great event of the century, what is
+  building up to it.
+- **Secret roads**: four countries hide a road no menu shows, with its own ideology and ending.
+  Find the moment and a door opens.
+- **Conspiracies and notes**: back one named man in a rival's inner circle and give the signal when
+  the odds are right; send treaties, demands, offers of alliance, aid and tolls that other
+  governments answer.
 - **Strategic war**: pick an objective and the front becomes a spearhead toward it; take it and
   the enemy reels. Choose a posture (offensive, dig in, elastic defence) and a land doctrine
   (manoeuvre, firepower, defence in depth, the nation in arms).
@@ -109,7 +117,7 @@ machine, change it in **Settings**.
 - **Flags** for every state, generated from its name and ideology, that change when the regime does.
 - **A living world**: blocs, coalitions against the leader, foreign-funded movements, general
   strikes called from abroad, revolutionary waves, a Great Slump, four eras.
-- **185 events, 47 decisions, 68 doctrine actions, 66 session lines, 51 national actions and 680 programmes**, many with delayed consequences. Bad news and good news are
+- **221 events (and 56 alternative tellings), 47 decisions, 68 doctrine actions, 66 session lines, 51 national actions and 735 programmes**, many with delayed consequences. Bad news and good news are
   balanced: after a run of trouble the dice lean toward a windfall, and problems arrive spaced out.
 - **A post-mortem when you fall** naming the faction that turned, what turned it, the last
   years of warnings and what to try next. A chronicle when the campaign ends.
