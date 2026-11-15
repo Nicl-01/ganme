@@ -14,6 +14,11 @@ for (const id of ids) {
   while (!G.over && ID.yearOf(G.tick) < 1976) {
     ID.Game.tick(G);
     while (G.evq.length) { const e = G.evq[0]; const def = ID.Events.def(e.id); const opts = ID.Events.options(G, G.nations[e.n], def, e.ctx); ID.Events.choose(G, Math.floor(rng.next() * opts.length)); }
+    // a conspiracy lives in two places, the backer's ops and the figure's backer: they must agree
+    if (G.tick % 30 === 0) for (const t of ID.alive(G)) for (const f of t.circle || []) {
+      const b = f.backer && G.nations[f.backer]; if (!b || !b.alive) continue;
+      if (!b.ops.some((o) => o.type === 'coup' && o.target === t.id && o.seat === f.seat && o.name === f.name)) throw new Error(ID.yearOf(G.tick) + ': ' + f.name + ' of ' + t.base + ' is backed by ' + b.base + ', which has no plot there');
+    }
   }
   const p = G.nations[G.player];
   const o = G.over;

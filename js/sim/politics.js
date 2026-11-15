@@ -301,7 +301,7 @@
     return G.rng.chance(0.75) ? 'junta' : G.rng.pick(['personalist', 'corporatist', 'natpop']);
   };
   P.coup = function (G, n, backer) {
-    n.a.coupAt = G.tick;
+    n.a.coupAt = G.tick; n.a.coupBoost = 0; // a foreign plot's odds (set in Diplomacy.plotSignal) belong to that plot only
     if (n.id === G.player) { ID.Events.queue(G, n, 'coup', { backer: backer || 0 }); return; }
     if (G.rng.chance(P.coupOdds(G, n, backer))) P.changeIdeology(G, n, P.coupIdeo(G, n, backer), 'coup', backer);
     else { n.stab -= 8; n.sm.military += 12; n.flags.coupSurvived = 1; ID.news(G, 'A coup attempt in ' + n.name + ' fails.', 'pol', n.id); if (ID.Press) ID.Press.coupFails(G, n, backer); }

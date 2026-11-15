@@ -430,10 +430,10 @@
       if (kind === 'treaty') { d.nap = 1; if (A.laws.trade !== 'autarky' && T.laws.trade !== 'autarky') d.trade = 1; ID.addOpBoth(G, A.id, T.id, 15); }
       else if (kind === 'cede') {
         const set = new Set(A.claims.filter((p) => G.provinces[p].owner === T.id));
-        if (set.size) { for (let i = 0; i < G.N; i++) if (G.owner[i] === T.id && set.has(G.prov[i]) && G.capital !== i && T.capital !== i) ID.setOwner(G, i, A.id); A.claims = A.claims.filter((p) => !set.has(p)); ID.recalcBorders(G); ID.recalcProvinceOwners(G); }
+        if (set.size) { for (let i = 0; i < G.N; i++) if (G.owner[i] === T.id && set.has(G.prov[i]) && T.capital !== i) ID.setOwner(G, i, A.id); A.claims = A.claims.filter((p) => !set.has(p)); ID.recalcBorders(G); ID.recalcProvinceOwners(G); }
         T.stab -= 6; ID.addOpBoth(G, A.id, T.id, -20); A.glory = Math.min(100, (A.glory || 0) + 5);
       } else if (kind === 'bloc') { if (A.bloc && G.blocs[A.bloc]) D.joinBloc(G, T, A.bloc); else { d.nap = 1; ID.addOpBoth(G, A.id, T.id, 20); } }
-      else if (kind === 'aid') { const g = Math.min(120, Math.max(0, A.gold)); A.gold -= g; T.gold += 120; T.stab += 3; ID.addOpBoth(G, A.id, T.id, 20); }
+      else if (kind === 'aid') { const g = Math.min(120, Math.max(0, A.gold)); A.gold -= g; T.gold += g; T.stab += 3; ID.addOpBoth(G, A.id, T.id, 20); }
       else if (kind === 'toll') { ID.addMod(T, 'rev', -0.02, 120, 'Toll to ' + A.base); ID.addMod(A, 'rev', 0.03, 120, 'Toll from ' + T.base); ID.addOpBoth(G, A.id, T.id, 10); }
     } else {
       ID.addOpBoth(G, A.id, T.id, kind === 'cede' ? -25 : kind === 'toll' ? -15 : kind === 'treaty' ? -8 : -5);
@@ -458,11 +458,10 @@
   D.plotBlock = function (G, n, t, f) {
     if (!t.alive || t === n) return 'No such target.';
     if (ID.ideo(t).flags.noCoup) return 'There is no officer corps there to suborn: power lies with the assemblies.';
-    if (ID.atWar(G, n.id, t.id) && false) return '';
     if (D.plotOp(n, t)) return 'You already have a man there.';
     if (n.ops.length >= 3) return 'Your networks are stretched: three operations at most.';
     if ((n.cd['coup_' + t.id] || 0) > G.tick) return 'Your contacts there are lying low until ' + ID.dateOf(n.cd['coup_' + t.id]).short + '.';
-    if (f.backer && f.backer !== n.id) return 'Somebody else got to him first.';
+    if (f.backer && f.backer !== n.id && G.nations[f.backer] && G.nations[f.backer].alive && D.plotOp(G.nations[f.backer], t)) return 'Somebody else got to him first.';
     if (D.plotOpen(n, t, f) < 22) return f.name + ' is loyal and content. He would report the approach.';
     const c = D.plotCost(n, f); if (n.gold < c) return 'Needs ' + c + ' gold.';
     return '';

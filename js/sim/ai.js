@@ -239,7 +239,7 @@
       const t = rng.weighted(c, (o) => (100 - o.stab) + (o.a.unrest || 0) + (o.id === G.player ? 25 * diffS.subvert : 0));
       if (t) Dp.startOp(G, n, 'fund', t);
     }
-    if (n.ops.length && n.gold < 30) n.ops.length = 0;
+    if (n.ops.length && n.gold < 30) for (let k = n.ops.length - 1; k >= 0; k--) Dp.stopOp(G, n, k); // stopOp also frees a recruited figure
     if (I.dip.export >= 0.2 && n.gold > 380 && n.ops.length < 3 && rng.chance(0.035)) {
       const c = ns.filter((o) => o !== n && !ID.ideo(o).flags.noCoup && ID.op(G, n.id, o.id) < -25 && ID.ideo(o).family !== I.family && !o.civilOf && Dp.plotBest(G, n, o));
       if (c.length) Dp.startOp(G, n, 'coup', rng.weighted(c, (o) => 100 - o.stab + (o.id === G.player ? 10 * diffS.subvert : 0)));
