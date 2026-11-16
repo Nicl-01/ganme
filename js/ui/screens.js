@@ -82,8 +82,8 @@
       (last ? btn('Continue <small>' + esc(idx[last].name) + ', ' + esc(idx[last].date) + '</small>', 'loadSlot', last, { cls: 'big red' }) : '') +
       btn('New campaign <small>1910–1976</small>', 'newGame', null, { cls: 'big' + (last ? '' : ' red') }) +
       btn('Learn to play <small>guided, 15 minutes</small>', 'tutorial', null, { cls: 'big' }) +
-      '<div class="row">' + btn('Load', 'loadMenu', null, { cls: 'ghost' }) + btn('Challenges <small>' + unlocked + ' / ' + ID.CHALLENGES.length + '</small>', 'challenges', null, { cls: 'ghost' }) + btn('Records <small>' + meta.runs.length + '</small>', 'records', null, { cls: 'ghost' }) + btn('Handbook', 'handbookT', null, { cls: 'ghost' }) + btn('Settings', 'settings', null, { cls: 'ghost' }) + '</div>' +
-      '</div><div class="foot">Plays entirely with left-click, drag, scroll and keys. Saves stay in this browser. <a href="https://discord.gg/bURjWZdgy7" target="_blank" rel="noopener">Join the Discord</a></div>';
+      '<div class="row">' + btn('Load', 'loadMenu', null, { cls: 'ghost' }) + btn('Challenges <small>' + unlocked + ' / ' + ID.CHALLENGES.length + '</small>', 'challenges', null, { cls: 'ghost' }) + btn('Records <small>' + meta.runs.length + '</small>', 'records', null, { cls: 'ghost' }) + btn('Handbook', 'handbookT', null, { cls: 'ghost' }) + btn('Settings', 'settings', null, { cls: 'ghost' }) + '<a class="b ghost" href="https://discord.gg/bURjWZdgy7" target="_blank" rel="noopener" style="text-decoration:none">Discord</a></div>' +
+      '</div><div class="foot">Plays entirely with left-click, drag, scroll and keys. Saves stay in this browser.</div>';
   };
 
   /* ---------------------------------------------------------------- campaign setup */
