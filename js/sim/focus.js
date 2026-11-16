@@ -426,7 +426,7 @@
     civilwar: (f) => ({ t: 'Civil war against ' + ID.IDEOLOGIES[f[1]].name, good: false }),
     protector: () => ({ t: 'Alliance with a friendly great power', good: true }),
     subvertNb: () => ({ t: 'Agitation in every neighbouring state', good: true }),
-    note2: (f) => ({ t: { treaty: 'Proposes a treaty to ', cede: 'Demands provinces from ', bloc: 'Invites into our alliance: ', aid: 'Offers aid to ', toll: 'Names a toll for ' }[f[2]] + f[1], good: null }),
+    note2: (f) => ({ t: { treaty: 'Proposes a treaty to ', cede: 'Demands provinces from ', bloc: 'Invites into our alliance: ', aid: 'Offers aid to ', toll: 'Names a toll for ', concession: 'Asks for an oil concession from ', base: 'Asks for a base in ', arms: 'Offers arms to ' }[f[2]] + f[1], good: null }),
   };
 
   /* ---------------------------------------------------------------- the storyline */
@@ -436,6 +436,9 @@
     G.story = { done: {}, flags: {}, picks: {}, loose: G.story ? G.story.loose : true };
     for (const b of ID.STORY) if (at(b) < G.tick) G.story.done[b.id] = 3; // before this campaign began
   };
+  /* Structural beats (b.struct) change the map or who rules whom; a campaign that starts after one still
+     needs its result, so they run at the start, quietly. */
+  St.structural = function (G) { for (const b of ID.STORY) if (b.struct && b.run && G.story.done[b.id] === 3) { let ok = true; if (b.cond) { try { ok = !!b.cond(G); } catch (e) { ok = false; } } if (ok) { try { b.run(G, true); } catch (e) { /* skip */ } } } };
   St.beat = (id) => ID.STORY.find((b) => b.id === id);
   St.title = (b) => b.title || (ID.Events.def(b.id) ? ID.Events.def(b.id).title : b.id);
   St.flag = (G, k) => !!(G.story && G.story.flags && G.story.flags[k]);

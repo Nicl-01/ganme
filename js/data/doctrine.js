@@ -467,6 +467,62 @@
 
   /* ---------------------------------------------------------------- leader traits */
   /* fx uses the same channels; ai: agg (war appetite), peace (willingness to settle), reform (takes reforming programmes). */
+  /* ================================================================ POST-COLONIAL (session 10) */
+  D.thirdpos = {
+    name: 'The Third Position', gauge: 'Independence of action', init: 60,
+    desc: 'The command council lives on its freedom from both blocs: aid from each, orders from neither. Every treaty, base and foreign loan spends some of it; every dam built alone and every concession taken back restores it.',
+    drift: (n) => -0.25 + (n.bloc ? -1.2 : 0.3) + (n.dep ? -0.8 : 0) + (n.tech.ind >= 4 ? 0.2 : 0) + (n.debt > 300 ? -0.4 : 0),
+    fx: (n, v) => ({ legit: (v - 50) * 0.09, trade: (v - 50) * 0.0015, prod: (v - 50) * 0.001, stab: (v - 50) * 0.03 }),
+    low: 'Low independence: a client state with a revolutionary flag.',
+    high: 'High independence: both blocs pay for the privilege of being refused.',
+    acts: [
+      { id: 'tp_dam', name: 'The great dam', desc: 'A dam on the river, built by our own engineers with whichever bloc lends the turbines. The lake will drown a kingdom of temples.', cost: { gold: 160 }, cd: 60, sig: 12, fx: [['mod', 'prod', 0.05, 120, 'The great dam'], ['mod', 'food', 0.06, 120, 'The great dam'], ['glory', 4]], ai: (n, v) => n.gold > 260 && v < 70 },
+      { id: 'tp_court', name: 'Court both blocs', desc: 'A state visit to each capital in the same month. Each offers more than the other, as long as we keep both waiting.', cost: { auth: 10 }, cd: 24, sig: 6, can: (n) => (n.bloc ? 'Not while we belong to a bloc.' : ''), fx: [['gold', 90], ['fn', (G, n) => { for (const b of G.blocs) if (b && b.members.length) ID.addOpBoth(G, n.id, b.leader, 4); }]], ai: (n) => !n.bloc },
+      { id: 'tp_nation', name: 'Nationalise the foreign companies', desc: 'Banks, insurers, the cotton exporters and the canal offices: one decree, signed at a rally, read on the radio.', cost: { auth: 20 }, cd: 120, sig: 14, fx: [['sup', 'capital', -12], ['sup', 'workers', 6], ['gold', 120], ['opAll', -3], ['fn', (G, n) => { if (ID.Sov) ID.Sov.nationaliseAll(G, n); }]], ai: (n, v) => v < 45 },
+      { id: 'tp_land', name: 'Land reform', desc: 'No family may own more than two hundred acres. The pashas’ estates go to their tenants, the pashas to the club.', cost: { auth: 15 }, cd: 60, sig: 6, fx: [['sup', 'peasants', 12], ['sup', 'capital', -6], ['law', 'land', 'smallholder'], ['mod', 'unrest', -4, 36, 'Land reform']], ai: (n) => n.fs.peasants < 50 },
+    ],
+    war: { name: 'The army of the people', desc: 'Conscripts who are told they defend a revolution: defence at home +15%, and the front holds a third longer before it breaks.', dp: { homeDef: 0.15, holdFast: 0.3 } },
+    order: { key: 'tp_volunteers', name: 'Volunteers from the brother peoples', gold: 60, cd: 300, self: 1,
+      desc: 'Volunteers from across the region answer the radio: troops equal to 1% of the population, and every state of our family of ideas thinks better of us.',
+      run: (G, n) => { const a = draft(G, n, 0.01, 0); for (const o of ID.alive(G)) if (o !== n && ID.ideo(o).family === ID.ideo(n).family) ID.addOp(G, o.id, n.id, 4); return ID.fmtPop(a) + ' volunteers arrive.'; }, ai: (G, n) => losing(n) },
+  };
+  D.pannat = {
+    name: 'The Party of the Nation', gauge: 'Unity of the nation', init: 55,
+    desc: 'One nation, one message, one party: the regime’s legitimacy is the dream of the whole people united. Unions, victories and broadcasts across the border feed it; rival pan-national regimes, defeats and secession poison it.',
+    drift: (n, G) => -0.35 + (n.nwars && !losing(n) ? 0.3 : 0) - (losing(n) ? 1.2 : 0) + (ID.Sov && ID.Sov.inUnion(G, n) ? 0.7 : 0) - (n.flags.discredited ? 0.5 : 0) + (n.charisma - 50) * 0.008,
+    fx: (n, v) => ({ legit: (v - 50) * 0.1, atk: (v - 50) * 0.0015, unrest: (50 - v) * 0.04, coup: (50 - v) * 0.01 }),
+    low: 'Low unity: a party of two wings and a hundred informers.',
+    high: 'High unity: crowds in three capitals chant the same name.',
+    acts: [
+      { id: 'pn_voice', name: 'The voice of the nation', desc: 'A radio station whose transmitters reach every capital of the people. Kings tremble at the evening news.', cost: { gold: 60 }, cd: 24, sig: 9, fx: [['fn', (G, n) => { for (const k in G.border[n.id] || {}) { const o = G.nations[+k]; if (o && o.alive && ID.ideo(o).family !== 'authoritarian') ID.docSeed(G, o, 'pannat', 6, 2, n.id); } }], ['note', 'Pan-national movements grow next door']], ai: (n, v) => v < 60 && n.gold > 120 },
+      { id: 'pn_purge', name: 'Purge the other wing', desc: 'The comrades who look to the other capital are traitors. The party congress expels them; the security service does the rest.', cost: { auth: 20 }, cd: 48, sig: 12, fx: [['discipline', 10], ['grievance', 8], ['sup', 'intelligentsia', -6], ['figPurge', 'ideology']], ai: (n, v) => v < 40 },
+      { id: 'pn_union', name: 'Call for union', desc: 'A public letter to the leaders of every state of the nation: the borders are a crime, and we propose to end it.', cost: { auth: 15 }, cd: 36, sig: 8, fx: [['fn', (G, n) => { n.flags.panCall = 1; if (ID.Sov) ID.Sov.proposeUnion(G, n); }]], ai: (n) => !n.nwars },
+      { id: 'pn_army', name: 'The ideological army', desc: 'Party commissars in every battalion; officers promoted by membership card rather than merit.', cost: { auth: 10 }, cd: 60, sig: 6, fx: [['mod', 'coup', -0.3, 120, 'The ideological army'], ['mod', 'atk', -0.03, 120, 'Officers by membership card'], ['sup', 'military', 4]], ai: (n) => n.coupRisk > 0.006 },
+    ],
+    war: { name: 'The nation in arms', desc: 'Every war is for the whole people: attack +8% while unity is above 60, but a lost province costs twice the usual stability.', dp: { atkMul: 1.06, brittle: 0.1 } },
+    order: { key: 'pn_rising', name: 'Call the people to rise', gold: 50, cd: 300, target: 1, range: 999,
+      desc: 'A broadcast to the enemy’s own people: our movement grows in four of its provinces and its unrest rises.',
+      run: (G, n, t) => { ID.docSeed(G, t, 'pannat', 14, 4, n.id); return 'The broadcast goes out to the people of ' + t.base + '.'; }, ai: (G, n) => n.nwars > 0 },
+  };
+  D.revival = {
+    name: 'The Revolution of the Faithful', gauge: 'Revolutionary zeal', init: 70,
+    desc: 'The revival rules on the zeal of the poor and the young. Marches, martyrs and defiance of the foreigner feed it; the compromises of government, a comfortable clergy and a long quiet drain it.',
+    drift: (n) => -0.4 + (n.nwars ? 0.4 : 0) + (n.dep ? 0.4 : 0) + (n.flags.martyrs ? 0.2 : 0) - (n.age > 120 ? 0.3 : 0) + (n.fervor - 50) * 0.01,
+    fx: (n, v) => ({ legit: (v - 50) * 0.1, def: (v - 50) * 0.002, unrest: (50 - v) * 0.05, trade: (50 - v) * 0.001 }),
+    low: 'Low zeal: the revolution has become a ministry of religious affairs.',
+    high: 'High zeal: the whole country marches behind the black banners.',
+    acts: [
+      { id: 'rv_sermon', name: 'Cassette sermons', desc: 'Tapes of the Guide’s sermons, copied in a thousand bazaars and played in taxis across every border.', cost: { gold: 40 }, cd: 18, sig: 8, fx: [['fervor', 6], ['fn', (G, n) => { const L = ID.alive(G).filter((o) => o !== n && ID.ideo(o).family !== 'conservative' && ID.op(G, n.id, o.id) < 10); for (let k = 0; k < 2 && L.length; k++) ID.docSeed(G, L.splice(G.rng.int(0, L.length - 1), 1)[0], 'revival', 7, 2, n.id); }]], ai: (n, v) => v < 65 && n.gold > 90 },
+      { id: 'rv_guard', name: 'The revolutionary guard', desc: 'An army beside the army, sworn to the Guide, with its own factories and its own prisons.', cost: { auth: 20 }, cd: 120, sig: 10, fx: [['mod', 'coup', -0.4, 600, 'The revolutionary guard'], ['sup', 'military', -8], ['mod', 'def', 0.06, 600, 'The revolutionary guard']], ai: (n) => n.coupRisk > 0.004 },
+      { id: 'rv_charity', name: 'The foundations of the poor', desc: 'The confiscated fortunes of the old regime become charitable foundations that feed, house and employ the faithful.', cost: { auth: 10 }, cd: 48, sig: 6, fx: [['sup', 'peasants', 6], ['sup', 'workers', 6], ['mod', 'ls', 2, 60, 'The foundations'], ['corr', 4]], ai: (n) => n.ls < 45 },
+      { id: 'rv_embassy', name: 'Storm the embassy', desc: 'Students climb the walls of the great power’s embassy and take its diplomats hostage. The country cheers; the world does not forget.', cost: { auth: 10 }, cd: 240, sig: 18, fx: [['opAll', -10], ['fervor', 10], ['fn', (G, n) => { n.flags.martyrs = 1; }]], ai: (n, v) => v < 35 },
+    ],
+    war: { name: 'The martyrs’ war', desc: 'Human waves and a cult of martyrdom: assaults cost the enemy more, war weariness grows half as fast, and occupied provinces resist.', dp: { martyr: 0.3, wePace: -0.5, bleed: 0.15 } },
+    order: { key: 'rv_waves', name: 'The human waves', gold: 0, cd: 360, self: 1,
+      desc: 'Volunteers, some of them boys, walk across the minefields: troops equal to 2% of the population, at the cost of equipment and a grief that lasts.',
+      run: (G, n) => { const a = draft(G, n, 0.02, 0.05); n.fervor = Math.min(100, n.fervor + 8); ID.addMod(n, 'growth', -0.06, 24, 'The martyrs'); return ID.fmtPop(a) + ' volunteers march to the front.'; }, ai: (G, n) => losing(n) || n.we > 45 },
+  };
+
   ID.TRAITS = {
     warlord: { name: 'Warlord', desc: 'Happiest at the map table. More eager for war; the army fights a little harder.', fx: { atk: 0.06 }, ai: { agg: 0.3, peace: -10 } },
     cautious: { name: 'Cautious', desc: 'Weighs every risk twice. Slower to start wars, quicker to end them; defence a little stronger.', fx: { def: 0.05 }, ai: { agg: -0.3, peace: 12 } },

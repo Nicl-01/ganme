@@ -124,7 +124,7 @@
   Pn.helpProg = function (G) {
     let h = '<p class="lead">Every state works through a programme: a long project that takes three or four months and then pays out. One runs at a time. Open the <b>Programme</b> panel (P) to choose.</p>';
     h += sec('The trees', '<ul><li>The <b>general programme</b> is open to every state: industry, farming, the army, the state, foreign policy, and a few campaigns you can repeat.</li>' +
-      '<li>On <b>The Two Continents</b>, each country also has a <b>national programme</b> of its own. Its branches are real choices: some rule each other out, some change the system of government, some start wars.</li>' +
+      '<li>On <b>The Three Continents</b>, each country also has a <b>national programme</b> of its own. Its branches are real choices: some rule each other out, some change the system of government, some start wars.</li>' +
       '<li>A programme can wait on a year, on earlier programmes, or on the regime in power. Hover any programme to see why it is locked.</li></ul>');
     h += sec('Your system’s own programme', '<ul><li>Every system of government has a programme of its own: a root, a choice of two roads, a capstone that <b>masters its doctrine</b> (a third stronger) and a late programme for the post-war world.</li><li>It belongs to the system, not the country: change your system and you change programme.</li></ul>');
     h += sec('Divergent history', '<ul><li>With history set to <b>Divergent</b>, other countries sometimes take the other road at a turning point, or follow a programme branch history never took, when their politics push them that way.</li><li>Your own choices at turning points are remembered. Later chapters depend on them: a crown that survives 1917, a party that crushes its sailors, a Senate that refuses the League.</li></ul>');
@@ -135,7 +135,7 @@
       '<li>A state can reach one destiny. Choosing a path closes the others.</li>' +
       '<li>A destiny belongs to the regime that reached it. If the system of government changes, the old name and flag go with it.</li>' +
       '<li>Click your flag in the top band for the <b>Nation screen</b>: motto, anthem, history, titles, and which destinies are still open.</li></ul>');
-    h += sec('Historical mode', '<p class="lead">A toggle when you set up a campaign on The Two Continents. With it on:</p><ul>' +
+    h += sec('Historical mode', '<p class="lead">A toggle when you set up a campaign on The Three Continents. With it on:</p><ul>' +
       '<li>A storyline runs from 1910 to 1976: a great war, revolutions, the Slump in October 1929, a second war, the blocs, a crisis over the straits. Each arrives on its date if its conditions still hold.</li>' +
       '<li>When history reaches your country, you get the dispatch and you choose. The option marked <b>as it happened</b> is what history did; the others are other roads.</li>' +
       '<li>Other countries take the historical option and follow their historical programmes. Once you change the world, history adapts or skips what no longer fits.</li>' +

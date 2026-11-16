@@ -77,7 +77,7 @@
     const idx = store.get('id_saves', {});
     const t = $('#title'); t.className = 'screen'; t.hidden = false;
     t.innerHTML = '<div class="veil"></div><div class="slab"><h1>Iron<span>Dialectic</span></h1></div>' +
-      '<p class="sub">A grand strategy of belief and power. Twenty-two ways to run a country, and every one of them can fall.</p>' +
+      '<p class="sub">A grand strategy of belief and power. Twenty-five ways to run a country, and every one of them can fall.</p>' +
       '<div class="menu">' +
       (last ? btn('Continue <small>' + esc(idx[last].name) + ', ' + esc(idx[last].date) + '</small>', 'loadSlot', last, { cls: 'big red' }) : '') +
       btn('New campaign <small>1910–1976</small>', 'newGame', null, { cls: 'big' + (last ? '' : ' red') }) +
@@ -122,9 +122,9 @@
     let h = '<div class="pick"><div class="dh"><h2>' + (ch ? esc(ch.name) : 'New campaign') + '</h2><button class="x" data-act="toTitle"' + tip('Back to the title screen') + '>✕</button></div><div class="db">';
     if (ch) h += '<div class="note red">' + esc(ch.desc) + '</div>';
     else {
-      h += '<div class="field"><label>World</label><div class="seg">' + [['meridia', 'The Two Continents'], ['random', 'Random world']].map((x) => '<button class="' + (S.scenario === x[0] ? 'on' : '') + '" data-act="setScen" data-a=\'"' + x[0] + '"\'>' + x[1] + '</button>').join('') + '</div><small>' + (S.scenario === 'meridia' ? esc(ID.SCENARIOS.meridia.desc) : 'A new map from a seed. Share the seed and someone else gets the same world.') + '</small></div>';
+      h += '<div class="field"><label>World</label><div class="seg">' + [['meridia', 'The Three Continents'], ['random', 'Random world']].map((x) => '<button class="' + (S.scenario === x[0] ? 'on' : '') + '" data-act="setScen" data-a=\'"' + x[0] + '"\'>' + x[1] + '</button>').join('') + '</div><small>' + (S.scenario === 'meridia' ? esc(ID.SCENARIOS.meridia.desc) : 'A new map from a seed. Share the seed and someone else gets the same world.') + '</small></div>';
       if (S.scenario === 'random') {
-        h += '<div class="field"><label>Seed and size</label><div class="row nw"><input type="text" value="' + S.seed + '" data-change="seed" style="width:120px"' + tip('Type a number and press Enter') + '>' + btn('New seed', 'reroll', null, { cls: 'ghost' }) + '</div><div class="seg" style="margin-top:6px">' + Object.keys(ID.MAP_SIZES).map((k) => '<button class="' + (S.size === k ? 'on' : '') + '" data-act="setSize" data-a=\'"' + k + '"\'' + tip(ID.MAP_SIZES[k].desc) + '>' + ID.MAP_SIZES[k].name + '</button>').join('') + '</div></div>';
+        h += '<div class="field"><label>Seed and size</label><div class="row nw"><input type="text" value="' + S.seed + '" data-change="seed" style="width:120px"' + tip('Type a number and press Enter') + '>' + btn('New seed', 'reroll', null, { cls: 'ghost' }) + '</div><div class="seg" style="margin-top:6px">' + Object.keys(ID.MAP_SIZES).filter((k) => !ID.MAP_SIZES[k].hidden).map((k) => '<button class="' + (S.size === k ? 'on' : '') + '" data-act="setSize" data-a=\'"' + k + '"\'' + tip(ID.MAP_SIZES[k].desc) + '>' + ID.MAP_SIZES[k].name + '</button>').join('') + '</div></div>';
       }
       if (S.scenario === 'meridia') { const mode = !S.historical ? 'free' : S.loose === false ? 'strict' : 'loose';
         h += '<div class="field"><label>History</label><div class="seg">' + [['strict', 'As it happened'], ['loose', 'Divergent'], ['free', 'Free']].map((x) => '<button class="' + (mode === x[0] ? 'on' : '') + '" data-act="setHist" data-a=\'"' + x[0] + '"\'>' + x[1] + '</button>').join('') + '</div><small>' + (mode === 'strict'

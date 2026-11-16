@@ -350,6 +350,15 @@
       ctx.beginPath(); ctx.moveTo(X - r * 0.5, Y); ctx.lineTo(X + r * 0.5, Y); ctx.moveTo(X, Y - r * 0.7); ctx.lineTo(X, Y + r * 0.7); ctx.stroke();
       if (z >= 5) { ctx.fillStyle = css(mine ? RED : INK); ctx.font = '700 10px "Barlow Condensed", sans-serif'; ctx.textAlign = 'center'; ctx.fillText('BEACHHEAD', X, Y - r * 1.9); }
     }
+    // oil fields (and the Canal): a derrick on each province that produces, in the colour of whoever takes the money
+    if (z >= 2) for (let p = 1; p < G.provinces.length; p++) {
+      const Pr = G.provinces[p]; if (!Pr.oil || !Pr.oilFound) continue;
+      const X = sx((Pr.center % W) + 0.5), Y = sy(((Pr.center / W) | 0) + 0.5); if (X < -20 || Y < -20 || X > cw + 20 || Y > ch + 20) continue;
+      const r = clamp(z * 1.1, 4, 9), foreign = Pr.oilCo && Pr.oilCo !== Pr.owner;
+      ctx.strokeStyle = css(INK, 0.9); ctx.fillStyle = foreign ? css(G.nations[Pr.oilCo].color, 0.95) : css(PAPER, 0.95); ctx.lineWidth = 1.4;
+      if (Pr.canal) { ctx.beginPath(); ctx.arc(X, Y, r, 0, 6.3); ctx.fill(); ctx.stroke(); ctx.beginPath(); ctx.moveTo(X - r * 0.6, Y); ctx.lineTo(X + r * 0.6, Y); ctx.stroke(); }
+      else { ctx.beginPath(); ctx.moveTo(X, Y - r * 1.4); ctx.lineTo(X + r * 0.7, Y + r); ctx.lineTo(X - r * 0.7, Y + r); ctx.closePath(); ctx.fill(); ctx.stroke(); ctx.beginPath(); ctx.moveTo(X - r * 0.45, Y + r * 0.2); ctx.lineTo(X + r * 0.45, Y + r * 0.2); ctx.stroke(); }
+    }
     // capitals
     for (let k = 1; k < G.nations.length; k++) {
       const n = G.nations[k]; if (!n.alive || n.capital < 0) continue;

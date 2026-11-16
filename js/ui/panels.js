@@ -350,7 +350,7 @@
   };
 
   /* ================================================================ HANDBOOK */
-  const HELP_NAV = [['play', 'How to play'], ['ideos', 'Ideologies'], ['factions', 'Factions'], ['legit', 'Legitimacy'], ['doc', 'Doctrines'], ['war', 'War'], ['build', 'Land and buildings'], ['prog', 'Programmes and history']];
+  const HELP_NAV = [['play', 'How to play'], ['ideos', 'Ideologies'], ['factions', 'Factions'], ['legit', 'Legitimacy'], ['doc', 'Doctrines'], ['war', 'War'], ['build', 'Land and buildings'], ['prog', 'Programmes and history'], ['sov', 'Sovereignty and oil']];
   Pn.helpIdeo = function (id, G) {
     const I = ID.IDEOLOGIES[id], M = ID.ECON[I.econ.model], C = ID.CONTROL[I.control.type]; let h = '';
     h += '<div class="card sh" style="border-left:12px solid ' + I.css + '"><b style="font:800 26px/1.05 var(--cond)">' + esc(I.name) + '</b><div class="dim" style="font-size:14px">' + ID.FAMILIES[I.family].name + ' family</div><p class="lead" style="margin:6px 0 0">' + esc(I.short) + '</p></div>';
@@ -373,7 +373,7 @@
     let h = '<div class="row" style="margin-bottom:12px">' + HELP_NAV.map((x) => btn(x[1], 'help', x[0], { cls: 'sm ' + (pg === x[0] || (x[0] === 'ideos' && pg.indexOf('i:') === 0) ? 'on' : 'ghost') })).join('') + '</div>';
     if (pg.indexOf('i:') === 0) return h + '<div class="row" style="margin-bottom:8px">' + btn('← All ideologies', 'help', 'ideos', { cls: 'sm ghost' }) + '</div>' + Pn.helpIdeo(pg.slice(2), G);
     if (pg === 'ideos') {
-      h += '<p class="lead">Twenty-two systems in six families. Each changes the rules: who sets the budget, how the army is raised, who can bring you down, and what winning means. None is the right answer.</p>';
+      h += '<p class="lead">Twenty-five systems in six families. Each changes the rules: who sets the budget, how the army is raised, who can bring you down, and what winning means. None is the right answer.</p>';
       for (const fam in ID.FAMILIES) h += sec(ID.FAMILIES[fam].name, ID.IDEO_LIST.filter((i) => i.family === fam).map((i) => '<button class="nrow" data-act="help" data-a=\'"i:' + i.id + '"\'><span class="sw" style="background:' + i.css + ';margin:0"></span><b>' + esc(i.name) + '</b><span class="dim" style="font-size:13.5px">' + ID.ECON[i.econ.model].name.replace(' economy', '') + '</span><small>' + esc(i.short) + '</small></button>').join(''));
       return h;
     }
@@ -410,6 +410,7 @@
       return h;
     }
     if (pg === 'prog') return h + Pn.helpProg(G);
+    if (pg === 'sov' && Pn.helpSov) return h + Pn.helpSov(G);
     if (pg === 'doc') return h + (Pn.helpDoc ? Pn.helpDoc(G, n) : '');
     if (pg === 'build') {
       h += sec('Terrain', '<table class="t"><tr><th>Terrain</th><th class="n">Front speed</th><th class="n">Attacker’s cost</th><th class="n">People</th><th class="n">Food</th></tr>' + ID.TERRAIN.slice(1).map((t) => '<tr><td><span class="sw" style="background:rgb(' + t.col.join(',') + ')"></span>' + t.name + '</td><td class="n">÷' + t.cost + '</td><td class="n">×' + t.def + '</td><td class="n">' + t.pop + '</td><td class="n">' + t.food + '</td></tr>').join('') + '</table>');

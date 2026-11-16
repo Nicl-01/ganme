@@ -6,7 +6,9 @@
   const clamp = ID.clamp, B = ID.B, T = ID.T;
   const AI = (ID.AI = {});
   const D = () => ID.Diplomacy;
-  const ERA_AGG = [0.7, 1.0, 1.4, 1.15];
+  const ERA_AGG = [0.6, 0.95, 1.4, 1.1];
+  /* the two world wars of the historical campaign: alliances drag everyone in, and no war is phony */
+  const worldWar = (G) => { if (!G.historical) return false; const y = ID.yearOf(G.tick); return (y >= 1914 && y < 1919) || (y >= 1939 && y < 1946); };
 
   function threats(G, n) {
     let worst = null, ws = 0;
@@ -152,7 +154,7 @@
   function proposeTo(G, n, o, kind) {
     if (o.id === G.player && !G.autoPlayer) {
       if ((n.cd['prop_' + kind] || 0) > G.tick) return false;
-      n.cd['prop_' + kind] = G.tick + 540;
+      n.cd['prop_' + kind] = G.tick + (kind === 'peace' ? 180 : 540);
       if (!G.offers) G.offers = [];
       if (!G.offers.some((x) => x.from === n.id && x.kind === kind)) { G.offers.push({ from: n.id, kind, until: G.tick + 120 }); ID.sfx(G, kind === 'peace' || kind === 'ally' ? 'event' : 'click'); G.uiDirty = true; }
       return true;
@@ -169,7 +171,7 @@
       if (c.length) { const o = rng.pick(c); if (Dp.evalProposal(G, n, o, 'trade').ok && (o.ai || Dp.evalProposal(G, o, n, 'trade').ok)) proposeTo(G, n, o, 'trade'); }
     }
     // blocs
-    if (!n.bloc) {
+    if (!n.bloc && !(n.dep && ID.Sov.vetoes(G, n, 'war')) && !(I.flags.nonAligned && !n.a.threatened)) {
       let best = null, bs = 12;
       for (const bl of G.blocs) {
         if (!bl || !bl.members.length) continue; const L = G.nations[bl.leader]; if (!L.alive || bl.coalition) continue;
@@ -182,7 +184,7 @@
         const c = ns.filter((o) => o !== n && !o.bloc && !ID.areRivals(n.ideo, o.ideo) && ID.ideoAffinity(n.ideo, o.ideo) > 8 && ID.op(G, o.id, n.id) > 25);
         if (c.length) proposeTo(G, n, rng.pick(c), 'ally');
       }
-    } else {
+    } else if (n.bloc) {
       const bl = G.blocs[n.bloc];
       // join an ally's war
       for (const mid of bl.members) {
@@ -190,7 +192,9 @@
         for (const e of Dp.enemies(G, m)) {
           if (ID.atWar(G, n.id, e.id) || Dp.warBlock(G, n, e) || n.nwars >= 2 || n.stab < 35) continue;
           const w = Dp.warOf(G, m.id, e.id); if (w.cb === 'civil') continue;
-          if ((ID.borders(G, n.id, e.id) || n.nb[B.PORT]) && rng.chance(bl.leader === mid ? 0.35 : 0.18)) { Dp.startWar(G, n, e, 'alliance'); break; }
+          // only members that border the enemy join, unless the ally is losing badly
+          const ww = worldWar(G) || bl.coalition === e.id; // a coalition exists to fight its menace, wherever it is
+          if ((ID.borders(G, n.id, e.id) || ((ww || Dp.warScore(G, m, e) < -0.3) && n.nb[B.PORT])) && rng.chance(ww ? (bl.leader === mid ? 0.35 : 0.18) : bl.leader === mid ? 0.2 : 0.08)) { Dp.startWar(G, n, e, 'alliance'); break; }
         }
       }
       // betrayal: a ruthless member turns on a weak, estranged bloc
@@ -224,10 +228,21 @@
         let co = null; for (const bl of G.blocs) if (bl && bl.coalition === Tn.id && bl.members.length) co = bl;
         if (!co && !n.bloc && myP > Dp.power(Tn) * 0.25) { co = Dp.formBloc(G, n); co.coalition = Tn.id; co.name = 'Coalition against ' + Tn.base; ID.news(G, 'A coalition forms against ' + Tn.name + '.', 'dip', n.id, Tn.id); if (Tn.id === G.player) ID.headline(G, { kicker: 'Encirclement', title: 'The world turns on ' + Tn.base, sub: n.name + ' leads a coalition against us.', a: n.id, b: Tn.id, tone: 'bad' }); ID.chron(G, 'bloc', 'A coalition forms against ' + Tn.name + ', led by ' + n.name + '.', n.id, Tn.id); }
         else if (co && n.bloc !== co.id && (!n.bloc || G.blocs[n.bloc].leader !== n.id) && rng.chance(0.5)) Dp.joinBloc(G, n, co.id);
+        // a coalition that is strong enough together goes to war with its menace
+        if (co && co.leader === n.id && G.stats.topShare > 0.33 && !ID.atWar(G, n.id, Tn.id) && !Dp.warBlock(G, n, Tn) && rng.chance(0.06)) {
+          let cp = 0; for (const m of co.members) if (G.nations[m] && G.nations[m].alive) cp += Dp.power(G.nations[m]);
+          if (cp >= Dp.power(Tn) * 0.8) Dp.startWar(G, n, Tn, 'coalition');
+        }
       }
     }
     // peace
     for (const e of Dp.enemies(G, n)) {
+      // a phony war: no front and nothing taken for a year ends in a white peace
+      const w = Dp.warOf(G, n.id, e.id);
+      if (w && w.cb !== 'civil') { const moved = (w.ta || 0) + (w.tb || 0); if (w.mv !== moved) { w.mv = moved; w.mvAt = G.tick; } }
+      const coal = (x, y) => x.bloc && G.blocs[x.bloc] && G.blocs[x.bloc].coalition === y.id;
+      const phony = w && w.cb !== 'civil' && !worldWar(G) && !coal(n, e) && !coal(e, n) && !ID.borders(G, n.id, e.id) && G.tick - (w.mvAt || w.start) > 360;
+      if (phony) { if (e.id === G.player && !G.autoPlayer) proposeTo(G, n, e, 'peace'); else Dp.peace(G, n, e); continue; }
       if (!Dp.wantsPeace(G, n, e)) continue;
       if (e.id === G.player && !G.autoPlayer) proposeTo(G, n, e, 'peace');
       else if (Dp.wantsPeace(G, e, n) || (G.tick - Dp.warOf(G, n.id, e.id).start) / 30 > 50) Dp.peace(G, n, e);
@@ -242,7 +257,8 @@
     if (n.ops.length && n.gold < 30) for (let k = n.ops.length - 1; k >= 0; k--) Dp.stopOp(G, n, k); // stopOp also frees a recruited figure
     if (I.dip.export >= 0.2 && n.gold > 380 && n.ops.length < 3 && rng.chance(0.035)) {
       const c = ns.filter((o) => o !== n && !ID.ideo(o).flags.noCoup && ID.op(G, n.id, o.id) < -25 && ID.ideo(o).family !== I.family && !o.civilOf && Dp.plotBest(G, n, o));
-      if (c.length) Dp.startOp(G, n, 'coup', rng.weighted(c, (o) => 100 - o.stab + (o.id === G.player ? 10 * diffS.subvert : 0)));
+      const t = c.length ? rng.weighted(c, (o) => Math.max(1, 100 - o.stab + (o.id === G.player ? 10 * diffS.subvert : 0))) : null;
+      if (t) Dp.startOp(G, n, 'coup', t);
     }
     if (I.flags.generalStrike && n.gold > 120 && n.auth >= 20 && rng.chance(0.3)) {
       const c = ns.filter((o) => o !== n && o.fs.workers < 45 && o.laws.labor !== 'control' && ID.op(G, n.id, o.id) < -10 && (n.cd['strike_' + o.id] || 0) <= G.tick);
@@ -256,6 +272,7 @@
     if (n.a.grace == null) n.a.grace = 360 + rng.int(0, 540);
     if (n.stab < 34 || n.we > 30 || n.age < 12 || n.trans > 0 || G.tick - G.startTick < n.a.grace) return;
     if (n.nwars >= (ID.rankOf(G, n, 'power') <= 2 ? 2 : 1)) return;
+    const rested = !n.a.lastPeace || G.tick - n.a.lastPeace > 4 * 360; // four years of peace after every war
     if (n.civil && G.nations[n.civil].alive) return;
     const era = ID.eraOf(G.tick); const diffA = ID.DIFFICULTY[G.difficulty].aiAgg;
     const myP = Dp.power(n) * (n.nwars ? 0.6 : 1);
@@ -267,8 +284,11 @@
     }
     for (const id of cands) {
       const o = G.nations[id]; if (!o || !o.alive || o === n || Dp.warBlock(G, n, o)) continue;
+      // rest after a war, unless the target is in civil war or is the runaway power everyone fears
+      if (!rested && !(o.civil && G.nations[o.civil] && G.nations[o.civil].alive) && !(G.stats.top === o.id && (o.threat > 50 || G.stats.topShare > 0.3))) continue;
       const d = ID.dipOf(G, n.id, o.id);
       let theirs = Dp.power(o);
+      if (o.dep && G.nations[o.dep.over] && G.nations[o.dep.over].alive && o.dep.over !== n.id) theirs += Dp.power(G.nations[o.dep.over]) * 0.6;
       if (o.bloc) for (const m of G.blocs[o.bloc].members) if (m !== o.id && G.nations[m].alive && !ID.atWar(G, m, n.id)) theirs += Dp.power(G.nations[m]) * 0.45;
       // rivals who might step in for the victim
       for (const x of ID.alive(G)) if (x !== n && x !== o && !x.nwars && ID.op(G, x.id, n.id) < -22 && (ID.borders(G, x.id, n.id) || ID.borders(G, x.id, o.id)) && !ID.sameBloc(G, x.id, n.id)) theirs += Dp.power(x) * 0.35;
@@ -286,6 +306,7 @@
       if (o.id === G.player) s = s * diffA + (diffA - 1) * 0.3;
       if (o.nukes > 0 && n.nukes === 0) s -= 0.5;
       if (G.historical && ID.yearOf(G.tick) < 1939) s -= 0.45;
+      else if (G.historical && ID.yearOf(G.tick) >= 1946) s -= 0.15; // the cold war is fought by proxies (sim/sovereignty.js)
       if (s > bs) { bs = s; best = o; bcb = cb; }
     }
     if (best && rng.chance(Math.min(0.5, bs * 0.55))) Dp.declare(G, n, best);

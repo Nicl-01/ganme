@@ -187,6 +187,7 @@
   const ICON = {
     brief: '<svg viewBox="0 0 24 24"><path d="M5 2h11l4 4v16H5zM15 2v5h5M8.5 11h8M8.5 15h8M8.5 19h5"/></svg>',
     gov: '<svg viewBox="0 0 24 24"><path d="M3 21h18M5 21V10M9.5 21V10M14.5 21V10M19 21V10M2 10h20L12 3z"/></svg>',
+    sov: '<svg viewBox="0 0 24 24"><path d="M4 21V9l8-6 8 6v12"/><path d="M9 21v-6h6v6"/><path d="M12 3v3"/></svg>',
     reg: '<svg viewBox="0 0 24 24"><circle cx="12" cy="6" r="3"/><circle cx="5" cy="14" r="2.4"/><circle cx="19" cy="14" r="2.4"/><path d="M7 21c0-3 2.2-5.5 5-5.5s5 2.5 5 5.5M1.5 21c0-2 1.5-3.6 3.5-3.6M22.5 21c0-2-1.5-3.6-3.5-3.6"/></svg>',
     eco: '<svg viewBox="0 0 24 24"><path d="M3 21V11l5 3V11l5 3V4h4v17zM3 21h18"/></svg>',
     law: '<svg viewBox="0 0 24 24"><path d="M6 3h12v18H6zM9 8h6M9 12h6M9 16h4"/></svg>',
@@ -197,7 +198,7 @@
     menu: '<svg viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h16"/></svg>',
     prog: '<svg viewBox="0 0 24 24"><path d="M5 22V3M5 4h13l-3 4.5 3 4.5H5"/></svg>',
   };
-  const TABS = [['brief', 'Report', 'R'], ['gov', 'State', 'G'], ['reg', 'Regime', 'I'], ['eco', 'Economy', 'E'], ['law', 'Laws', 'L'], ['prog', 'Programme', 'P'], ['mil', 'War', 'M'], ['for', 'Foreign', 'F'], ['world', 'World', 'O'], ['help', 'Handbook', 'H']];
+  const TABS = [['brief', 'Report', 'R'], ['gov', 'State', 'G'], ['reg', 'Regime', 'I'], ['eco', 'Economy', 'E'], ['law', 'Laws', 'L'], ['prog', 'Programme', 'P'], ['mil', 'War', 'M'], ['for', 'Foreign', 'F'], ['sov', 'Sovereignty', 'U'], ['world', 'World', 'O'], ['help', 'Handbook', 'H']];
   UI.TABS = TABS;
   UI.renderRail = function () {
     $('#rail').innerHTML = TABS.map((t) => '<button class="tab' + (UI.tab === t[0] ? ' on' : '') + '" data-act="tab" data-a=\'"' + t[0] + '"\' id="tab-' + t[0] + '"' + tip('<b>' + t[1] + '</b> <span class="dim">(' + t[2] + ')</span>') + '>' + ICON[t[0]] + '<span>' + t[1] + '</span><i class="pip" hidden></i>' + (t[0] === 'prog' ? '<i class="tprog"><u id="tprog"></u></i>' : '') + '</button>').join('') +

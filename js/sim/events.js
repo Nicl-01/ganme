@@ -114,6 +114,7 @@
   Ev.queue = function (G, n, id, ctx) {
     const def = Ev.def(id); if (!def) return;
     fortune(G, n, def);
+    if (def.sys || def.story || def.national) n.a.lastSys = G.tick; // chance gives way to the story (Ev.month)
     if (n.id === G.player && !G.autoPlayer) {
       const e = { id, n: n.id, ctx: ctx || {}, t: G.tick };
       if (G.trayEvents && !Ev.urgent(def)) { (G.tray = G.tray || []).push(e); G.uiDirty = true; } else G.evq.push(e);
@@ -168,6 +169,12 @@
     if (n.a.luck) n.a.luck *= 0.94; // hard times are forgotten in about a year
     if (n.a.evCd > 0) { n.a.evCd--; return; }
     if (!byId) index();
+    const isP0 = n.id === G.player;
+    // the story first: no random dispatch within three months of a chapter, a national turning point or a crisis
+    if (isP0 && n.a.lastSys != null && G.tick - n.a.lastSys < 90) return;
+    // a world-wide cap on random dispatches each month (the player's own are paced by their cooldown)
+    if (G.evMonth !== G.tick) { G.evMonth = G.tick; G.evMonthN = 0; }
+    if (!isP0 && G.evMonthN >= 4) return;
     const era = ID.eraOf(G.tick);
     const seen = n.a.evSeen || (n.a.evSeen = {});
     const cands = []; let tot = 0;
@@ -178,7 +185,10 @@
       if (!def.w || def.sys) continue;
       if (def.era != null && era < def.era) continue;
       if (def.once && seen[def.id]) continue;
-      if (seen[def.id] && G.tick - seen[def.id] < (def.cd || 60) * 30) continue;
+      // each repeat waits longer than the last, and nothing comes a fourth time (def.recur: seasonal, at most five)
+      const cnt0 = (n.a.evN && n.a.evN[def.id]) || 0;
+      if (cnt0 >= (def.recur ? 5 : 3)) continue;
+      if (seen[def.id] && G.tick - seen[def.id] < (def.cd || 60) * 30 * (1 + cnt0)) continue;
       let w = 0; try { w = def.w(n, G, {}) || 0; } catch (e) { w = 0; }
       if (w <= 0) continue;
       // what has come round often comes round less, and two dispatches on one subject do not arrive back to back
@@ -190,9 +200,9 @@
       cands.push([def, w]); tot += w;
     }
     if (!tot) return;
-    if (!G.rng.chance(clamp(tot / (isP ? 130 : 260), 0, isP ? 0.3 : 0.15))) return;
+    if (!G.rng.chance(clamp(tot / (isP ? 150 : 260), 0, isP ? 0.2 : 0.15))) return;
     const pick = G.rng.weighted(cands, (c) => c[1]); if (!pick) return;
-    const d0 = pick[0]; seen[d0.id] = G.tick; n.a.evCd = isP ? 4 : 6;
+    const d0 = pick[0]; seen[d0.id] = G.tick; n.a.evCd = isP ? 6 : 8; G.evMonthN++;
     (n.a.evN || (n.a.evN = {}))[d0.id] = ((n.a.evN[d0.id] || 0) + 1);
     if (d0.theme) (n.a.evTh || (n.a.evTh = {}))[d0.theme] = G.tick;
     const ctx = {};

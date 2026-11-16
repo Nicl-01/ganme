@@ -386,6 +386,32 @@
       { label: 'Train them and sell to them', fx: [['gold', 70], ['opAll', 2], ['mod', 'trade', 0.04, 36, 'The foreign orders']] },
       { label: 'Train them for nothing; friends are worth more', fx: [['opAll', 5], ['glory', 2]] },
     ] });
+  // session 10: the dispatches that still came round most often get more faces
+  vary('bumper_harvest', [
+    ['The granaries overflow', 'The co-operatives have run out of sacks and the railways out of wagons. In the south they are storing wheat in the churches.'],
+    ['A year of plenty', 'The old men say they have not seen a harvest like it since they were boys. The price of bread has fallen for the first time in a decade.'],
+  ]);
+  vary('record_year', [
+    ['The ledgers balance', 'For the first time in memory every ministry has spent less than it was given and every factory made more than it was asked. The finance minister has framed the accounts.'],
+    ['Full order books', 'The steelworks have orders for three years ahead and are hiring in the villages. The newspapers call it a boom; the old bankers call it a warning.'],
+  ]);
+  vary('inventor', [
+    ['A garage in the suburbs', 'Two brothers working in a garage have built a machine that the patent office cannot classify and the army wants to buy before anyone else sees it.'],
+    ['The professor’s discovery', 'A professor at the provincial university has published a paper that the foreign journals are calling the most important of the decade. He would like a laboratory.'],
+  ]);
+  vary('foreign_capital', [
+    ['The bankers from abroad', 'A consortium of foreign banks wants to finance a railway, a port and a power station, at interest and with a seat on the board of each.'],
+    ['An offer from overseas', 'A foreign motor company wants to build its largest factory abroad here: ten thousand jobs, no taxes for twenty years, and the right to send its profits home.'],
+  ]);
+  vary('village_vs_factory', [
+    ['The river turns black', 'The new tannery upstream has turned the river black, and the villages downstream have stopped drinking from it. The owner says he employs four hundred men.'],
+    ['Smoke over the orchards', 'The smelter’s fumes have killed the orchards for five miles around. The orchard owners have sent a petition; the smelter’s workers have sent a bigger one.'],
+  ]);
+  vary('expert_report', [
+    ['The auditors’ report', 'The auditors have found that a fifth of the state’s budget is spent on things nobody can identify. Their report recommends a commission to look into it.'],
+  ]);
+  // the harvest is seasonal: it may come round up to five times, each time later than the last (sim/events.js)
+  for (const id of ['bumper_harvest', 'harvest_failure']) { const d = def(id); if (d) d.recur = 1; }
   // tones for the draw
   for (const d of E) if (d.id && d.id.indexOf('v_') === 0 && !d.theme) d.theme = 'misc';
 })();

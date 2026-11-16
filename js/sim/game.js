@@ -184,6 +184,7 @@
     for (const n of ns) { if (n.alive) ID.Politics.month(G, n); if (G.over) return; }
     for (const n of ns) if (n.alive) { ID.Diplomacy.opsMonth(G, n); ID.Events.month(G, n); }
     ID.Diplomacy.month(G);
+    if (ID.Sov) ID.Sov.month(G);
     for (const n of ns) if (n.alive && (n.ai || G.autoPlayer)) ID.AI.month(G, n);
     ID.Story.month(G);
     ID.Combat.tickRadiation(G);
@@ -223,7 +224,7 @@
       v: 1, seed: G.seed, size: G.size, scenario: G.scenario, difficulty: G.difficulty, challenge: G.challenge, ironman: G.ironman, tick: G.tick, startTick: G.startTick || 0, speed: G.speed, rng: G.rng.s, era: G.era,
       owner: rle(G.owner), bld: rle(G.bld), rad: G.radList.map((i) => [i, G.rad[i]]),
       nations: G.nations, player: G.player, rel,
-      prov: G.provinces.slice(1).map((P) => [P.core, Math.round(P.unrest * 10) / 10, P.opp, Math.round(P.oppStr * 10) / 10, Math.round(P.integ), P.lastOwner, P.sponsor]),
+      prov: G.provinces.slice(1).map((P) => [P.core, Math.round(P.unrest * 10) / 10, P.opp, Math.round(P.oppStr * 10) / 10, Math.round(P.integ), P.lastOwner, P.sponsor, P.oil || 0, P.oilFound || 0, P.oilCo || 0, P.oilShare || 0, P.oilAt || 0, P.canal || 0]), fronts: G.fronts || null,
       attacks: G.attacks.map((a) => ({ id: a.id, from: a.from, to: a.to, troops: a.troops, committed: a.committed, style: a.style, amphib: a.amphib, taken: a.taken })),
       boats: G.boats, missiles: G.missiles, builds: G.builds, dip: G.dip, blocs: G.blocs, news: G.news.slice(-60), chronicle: G.chronicle, world: G.world, flags: G.flags,
       evq: G.evq, tray: G.tray || [], votes: G.votes, nextId: G.nextId, over: G.over, tut: G.tut, offers: G.offers || [], shock: G.shock || [], historical: !!G.historical, story: G.story || null, beach: G.beach || [], press: G.press || null,
@@ -233,7 +234,7 @@
   Gm.load = function (str) {
     const o = typeof str === 'string' ? JSON.parse(str) : str;
     const sc = o.scenario && o.scenario !== 'random' ? ID.SCENARIOS[o.scenario] : null;
-    const map = ID.genMap({ seed: o.seed, size: o.size, blobs: sc ? sc.blobs : null });
+    const map = ID.genMap(ID.mapOpts(sc, o.seed, o.size));
     const N = map.N;
     const G = {
       v: 1, seed: o.seed, size: o.size, scenario: o.scenario, difficulty: o.difficulty, headless: false, challenge: o.challenge, ironman: o.ironman, rng: new ID.RNG(1), tick: o.tick, startTick: o.startTick || 0, speed: o.speed || 2, paused: true, era: o.era,
@@ -245,13 +246,13 @@
       flags: o.flags || {}, dirty: [], dirtyAll: true, radList: [], mapMode: 'political', fx: [], sfx: [], capLost: [], evq: o.evq || [], tray: o.tray || [], votes: o.votes || [], over: o.over || null, nextId: o.nextId || 1, fortsDirty: true, tut: o.tut || null, offers: o.offers || [], shock: o.shock || [], beach: o.beach || [], press: o.press || null,
     };
     G.rng.s = o.rng >>> 0;
-    G.historical = !!o.historical; G.story = o.story || null; if (G.historical && !G.story) ID.Story.init(G);
+    G.historical = !!o.historical; G.story = o.story || null; G.fronts = o.fronts || null; if (G.historical && !G.story) ID.Story.init(G);
     if (sc) for (const n of G.nations) if (n && !n.tree && !n.civilOf && ID.FOCUS.nations[n.base]) n.tree = n.base; // saves from before programmes existed
     unrle(o.owner, G.owner); unrle(o.bld, G.bld);
     for (const [i, v] of o.rad || []) { G.rad[i] = v; G.radList.push(i); }
     for (let p = 1; p < G.provinces.length; p++) {
       const P = G.provinces[p], s = o.prov[p - 1];
-      P.cnt = {}; P.core = s[0]; P.unrest = s[1]; P.opp = s[2]; P.oppStr = s[3]; P.integ = s[4]; P.lastOwner = s[5]; P.sponsor = s[6]; P.nCity = 0; P.nFact = 0; P.owner = 0; P.urban = 0.06;
+      P.cnt = {}; P.core = s[0]; P.unrest = s[1]; P.opp = s[2]; P.oppStr = s[3]; P.integ = s[4]; P.lastOwner = s[5]; P.sponsor = s[6]; P.oil = s[7] || 0; P.oilFound = s[8] || 0; P.oilCo = s[9] || 0; P.oilShare = s[10] || 0; P.oilAt = s[11] || 0; P.canal = s[12] || 0; if (sc && sc.region && o.size === sc.size && P.cy >= sc.region.y * G.H) P.region = sc.region.key; P.nCity = 0; P.nFact = 0; P.owner = 0; P.urban = 0.06;
     }
     for (let i = 0; i < N; i++) {
       const ow = G.owner[i]; if (ow) { const P = G.provinces[G.prov[i]]; P.cnt[ow] = (P.cnt[ow] || 0) + 1; }

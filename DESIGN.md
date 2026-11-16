@@ -5,7 +5,7 @@ everything the state can do follows from what it believes and how it is organise
 
 ## 1. Pillars
 
-1. **Ideology is the rulebook, not a bonus.** Each of the 22 ideologies swaps out parts of the
+1. **Ideology is the rulebook, not a bonus.** Each of the 25 ideologies swaps out parts of the
    rules: who sets the budget, how troops are raised, which factions can bring you down, where
    legitimacy comes from, what you are allowed to order directly.
 2. **War is simple to operate and hard to master.** OpenFront-style: one troop pool, a
@@ -65,13 +65,13 @@ population beyond the ceiling, at a cost in support, weariness and equipment).
 ### Programmes and historical mode (added in session 4)
 A **programme** is a long project (75–140 days) that pays out when it finishes; one runs at a
 time. Every state shares a general tree (industry, agriculture, army, state, foreign policy and
-three repeatable campaigns). On *The Two Continents* each country also has a national tree of 8–12
+three repeatable campaigns). On *The Three Continents* each country also has a national tree of 8–12
 programmes whose branches are real political choices: some rule each other out ("Strengthen the
 Okhrana" or "The October Manifesto"), some change the system of government, some claim land or
 start wars. Ideological programmes are what make a country's trajectory a choice rather than
 only a drift.
 
-**Historical mode** (a setup toggle, on by default for The Two Continents) adds a storyline of 25
+**Historical mode** (a setup toggle, on by default for The Three Continents) adds a storyline of 25
 dated beats from 1911 to 1973. World beats act directly (the Steel Accord forms, the great war
 breaks out, the armistice, the atomic test, the iron curtain); nation beats are dispatches to one
 country (the February days in Aurelia, the Fourteenth Congress in Karsova, the generals' rising
@@ -89,7 +89,7 @@ state, raises a new flag, installs a named leader and arrives as a full-screen m
 meant to be remembered. Destinies are written as short, specific, slightly ominous scenes rather than
 bonuses: "Your request was anticipated in 1951." States without a national tree get a family tree
 with destinies of their own, so every country on every map has somewhere to go. Each country of The
-Two Continents also has a motto, an anthem (generated from its name), a short history and two
+Three Continents also has a motto, an anthem (generated from its name), a short history and two
 national spirits; titles ("Victor over Hesperia", "Born of Revolution") accumulate as it plays.
 
 ### Knowing what to do (added in session 6)
@@ -136,6 +136,35 @@ dated chapter months before it arrives, so the great events read as the end of s
 programmes and diplomatic notes make the other countries answer you; conspiracies give a small
 state a way to change a large one. Sprawl costs, and a small state that is well run gets more out
 of each province: skill, not size, should decide.
+
+### The Old Lands and sovereignty (added in session 10)
+The historical campaign gained a third continent, the Old Lands: an empire's last provinces, mandates and
+protectorates, oil under the sand and a land two peoples claim. Its design idea is that its history is done to it
+before it is something it does. The Great War is fought over it, not by it; its borders are drawn in other
+capitals; its oil belongs to foreign companies until someone takes it back. Some chapters have no good option,
+only less bad ones, and say so. Four generic mechanics carry it and work in random worlds too:
+
+- **Dependency.** A vilayet, protectorate, mandate, treaty state, client or union region pays its overlord a share
+  of revenue and oil, may be forbidden wars and some laws, hosts a garrison and can have its government deposed.
+  A gauge runs from collaboration to resistance; the ways out are a treaty, a rising, the overlord's collapse, a
+  liberation front or history. An overlord defends its dependencies; a great power may keep a defeated small
+  state as a protectorate instead of annexing it.
+- **Oil.** Fields under deserts, found by chance, programme or chapter, worth more each era. A concession brings
+  gold now and gives a foreign company most of the income; nationalising it is a crisis the company's country
+  answers with an embargo, a coup, an invasion or a settlement. The Canal works the same way.
+- **Intervention.** Bloc leaders arm one side of wars where the other leans to a rival bloc, court the unaligned
+  with aid, take bases and invade dependencies in civil war "to restore order".
+- **Union.** Two pan-national states can merge; the junior becomes a region whose tension can break the union.
+
+Peoples without a state (the Return, the Dersan Front) are actors before they are countries. Three ideologies
+were added: Third Positionism, Pan-Nationalism (whose two wings hate each other) and Religious Revival.
+
+### Pacing and variety (session 10)
+Chance gives way to the story: random dispatches are capped at three per kind per campaign, each repeat waits
+longer, none arrives within three months of a chapter or crisis, and the world draws at most four a month.
+Peace lasts: truces are eight years, an AI state rests four years after a war, allies join offensives only where
+they share a front (except in the two world wars and in coalitions against a runaway power), and wars with no
+front and no movement for a year end in a white peace.
 
 ### Combat in five sentences
 Troops are a share of your population set by the mobilisation slider; soldiers are not
@@ -184,6 +213,9 @@ Economy model · control · recruitment · legitimacy · signature rule. Full nu
 | Merchant republic | trade | parliament | mercenary | prosperity | income is trade; buy troops and peace with gold |
 | Cybernetic planner | cyber | party | conscript | competence, participation | no distortion while compute keeps up; censorship poisons the data |
 | National populist | pact | decree | conscript | charisma, victory | plebiscites and scapegoats: support now, isolation later |
+| Third Positionism | pact | decree | conscript | charisma, competence | non-aligned: courted by both blocs, independence of action as its gauge |
+| Pan-Nationalism | plan | party | conscript | discipline, fervour | unions with other states of the nation; rival wings are enemies |
+| Religious Revival | pact | court | mass levy | divine, fervour | martyrs and human waves; exports its sermons; no foreign base tolerated |
 
 ## 5. Data schema
 
@@ -275,14 +307,21 @@ js/ui/doctrine.js     doctrine card, leader traits, the doctrine at war, Doctrin
 js/ui/regime.js       the Regime panel: inner circle, session line, national question; alerts and Report items
 js/ui/press.js        The World Dispatch: the front page, back issues
 js/sim/press.js       stories from other countries and the editions they are printed in
-js/sim/secret.js      the four secret roads: triggers, tabs, secret ideologies and endings
+js/sim/secret.js      the five secret roads: triggers, tabs, secret ideologies and endings
+js/sim/sovereignty.js dependency, oil, intervention, pan-national unions, liberation fronts (ID.Sov)
+js/data/oldlands.js   the Old Lands: national layer, identities, oil fields, fronts, chapters and press
+js/data/oldtrees.js   the Old Lands' programme trees, destinies, projects and foreign programmes
+js/data/dispatches.js the third shelf of ordinary dispatches, and the sovereignty dispatches
+js/data/trees2.js     longer trees: a nine-programme branch per national tree, late ideology pairs
+js/ui/sovereignty.js  the Sovereignty panel (key U), its Report items and handbook page
 js/ui/nation.js       Nation screen and superevents; scenes.js paints their scenes
 js/ui/tray.js         dispatch tray (ordinary dispatches wait while the clock runs)
 js/ui/madness.js      screen effects for absolute monarchs and personal dictators
 js/ui/screens.js      title, campaign setup, saves, settings, challenges, records, post-mortem, chronicle
 js/ui/tutorial.js     guided first campaign as Cassine
 js/ui/main.js         boot, main loop, pointer and wheel input
-tools/                simulate.js, soak.js, budget.js, probe.js, fates.js, history.js (headless, Node)
+tools/                load.js (loads the sim in index.html's order), metrics.js (events, pacing, trees, tables),
+                      simulate.js, soak.js, budget.js, probe.js, fates.js, history.js (headless, Node)
 ```
 
 The `sim` layer never touches the DOM, so whole campaigns run in Node for balance testing.

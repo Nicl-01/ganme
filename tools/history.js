@@ -2,11 +2,7 @@
    node tools/history.js [--runs 3] [--years 66] [--free] [--verbose] [--start 1910]
    Prints which story beats fired, which programmes each country completed, and how the world ended. */
 'use strict';
-const path = require('path');
-const root = path.join(__dirname, '..', 'js');
-globalThis.ID = {};
-for (const f of ['core/util', 'data/base', 'data/ideologies', 'data/names', 'data/events', 'data/fortune', 'data/arcs', 'data/variety', 'data/focus', 'data/destiny', 'data/story2', 'data/expand', 'data/doctrine', 'data/ideotrees', 'data/regime', 'data/national', 'data/projects', 'data/foreign', 'data/press', 'sim/mapgen', 'sim/world', 'sim/combat', 'sim/economy', 'sim/politics', 'sim/diplomacy', 'sim/events', 'sim/focus', 'sim/doctrine', 'sim/regime', 'sim/press', 'sim/secret', 'sim/ai', 'sim/game']) require(path.join(root, f + '.js'));
-const ID = globalThis.ID;
+const ID = require('./load.js');
 const arg = (k, d) => { const i = process.argv.indexOf('--' + k); return i >= 0 ? process.argv[i + 1] : d; };
 const runs = +arg('runs', 3), years = +arg('years', 66), start = +arg('start', 1910);
 const free = process.argv.includes('--free'), verbose = process.argv.includes('--verbose');

@@ -56,6 +56,7 @@
     if (e.rent != null) n.rent = e.rent;
     if (e.pact != null) n.pact = e.pact;
     n.plan = null; n.pactBroken = false; n.emergency = false; n.motions = 0;
+    if (!init && n.cnt) n.cnt.sustain = 0; // the years an objective has been held begin with the regime that holds it
     n.drift = {}; for (const d of I.drift) n.drift[d.to] = 0;
     n.mob = Math.min(n.mob, ID.maxMob(n));
     n.electionAt = I.elections ? G.tick + (init ? G.rng.int(1, I.elections) : I.elections) * 360 : 0;
@@ -277,7 +278,7 @@
     const sc = opts.scenario && opts.scenario !== 'random' ? ID.SCENARIOS[opts.scenario] : null;
     const seed = sc ? sc.seed : ((opts.seed >>> 0) || 1);
     const size = sc ? sc.size : (opts.size || 'std');
-    const map = ID.genMap({ seed, size, blobs: sc ? sc.blobs : null });
+    const map = ID.genMap(ID.mapOpts(sc, seed, size));
     const N = map.N;
     const startYear = opts.startYear || ID.START_YEAR;
     const G = {
@@ -420,7 +421,7 @@
       if (d.sit === 'sick') { n.sm.peasants = -8; n.sm.intelligentsia = -8; }
       if (startYear >= 1940) { n.tech.ind = 3; n.tech.mil = 3; n.tech.agr = 2; n.mob = Math.min(ID.maxMob(n), n.mob * 1.8); n.troops = n.pop * n.mob; }
       n.startTiles = n.peakTiles = n.tiles;
-      n.blurb = d.blurb || ''; n.tutorial = !!d.tutorial;
+      n.blurb = d.blurb || ''; n.tutorial = !!d.tutorial; if (d.region) n.region = d.region;
       if (sc && ID.FOCUS.nations[d.base]) n.tree = d.base;
       if (I.flags.succession) n.leader.age = rng.int(40, 66);
     });
@@ -463,6 +464,8 @@
     G.historical = !!(opts.historical && sc && sc.id === 'meridia');
     if (G.historical) { G.world.depressionAt = (1929 - ID.START_YEAR) * 360 + 9 * 30; ID.Story.init(G); G.story.loose = opts.loose !== false; }
     if (ID.Regime) for (const n of nats) ID.Regime.ensure(G, n);
+    if (ID.Sov) ID.Sov.init(G, sc);
+    if (G.historical && ID.Story.structural) ID.Story.structural(G);
     ID.chron(G, 'world', 'The year ' + startYear + '. ' + nats.length + ' states divide the world between them.');
     return G;
   };

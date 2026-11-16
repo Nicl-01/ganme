@@ -21,7 +21,7 @@ people want to keep playing. Prioritise legibility, performance, and a clear rea
 |---|---|
 | Design doc (`DESIGN.md`) | written |
 | Data: terrain, buildings, laws, recruitment, styles, factions, eras (`js/data/base.js`) | done |
-| Data: 22 ideologies (`js/data/ideologies.js`) | done |
+| Data: 25 ideologies (`js/data/ideologies.js`) | done |
 | Data: names, handcrafted scenario, situations, challenges (`js/data/names.js`) | done |
 | Data: ~75 events and ~45 decisions (`js/data/events.js`) | done |
 | Sim: mapgen, world, combat, economy, politics, diplomacy, events engine, AI, game loop/save | done, runs headless |
@@ -51,8 +51,8 @@ exists in the sandbox for headless browser checks (use puppeteer-core from npm o
   `ID` (`globalThis.ID`). Load order: `core/util` → `data/base` → `data/ideologies` →
   `data/names` → `data/events` → `data/focus` → `sim/mapgen` → `sim/world` → `sim/combat` →
   `sim/economy` → `sim/politics` → `sim/diplomacy` → `sim/events` → `sim/focus` → `sim/ai` →
-  `sim/game` → `ui/*` (`ui/programme.js` after `ui/panels.js`). Every tool in `tools/` has its
-  own copy of this list: add new files there too.
+  `sim/game` → `ui/*` (`ui/programme.js` after `ui/panels.js`). `index.html` is the one list: the
+  tools load the sim through `tools/load.js`, which reads the core, data and sim script tags from it (session 10).
 - **`js/sim` and `js/data` never touch the DOM.** The UI reads the game object `G` and calls
   sim functions. Keep it that way so the Node tools keep working.
 - `G` is one plain object made by `ID.newGame(opts)` (`sim/world.js`). `ID.setPlayer(G, id,
@@ -527,6 +527,86 @@ in free play.
 - Balance checks: historical civil wars ~4 per run, AI-played soak 5 wins / 3 survive / 9 fall,
   random-world largest state 22% on average. Tests: `/home/claude/scripts/regime.js` (WHO=...),
   `warobj.js`, `treeproj.js`, `banner.js`; `/tmp/diag/regime.js`, `objtest.js`.
+
+## Session 10: the Old Lands, sovereignty, and three universal fixes
+
+Brief: (A) a third continent for the historical campaign modelled on the Middle East and the post-colonial
+world, whose history is done to it before it is something it does; (B) fewer repeated events, more peace, longer
+programme trees. Planned in plan mode first; every metric below comes from `node tools/metrics.js`.
+
+- **Map** (`sim/mapgen.js`, `data/names.js`): the scenario is now *The Three Continents, 1910* (id still
+  `meridia`) on a new hidden size `hist` (384×288). The old blobs and nations keep their tiles (y scaled by
+  216/288, noise scaled with `noiseH`; 96.6% of the old continents' tiles unchanged). The Old Lands fill the new
+  southern band (`province.region = 'old'`, rows below 0.76). Saves of the old `std` map load with `sc.legacy`
+  through `ID.mapOpts`.
+- **States**: Varanth (empire → officers' republic), Baskhar, Amaran, Tyrrha (vilayets → mandates), Khemra
+  (Norvish protectorate, the Canal), Sahrem (desert emirate, oil), Zandar (shahdom, oil concession). The Return
+  (→ Neshar) and the Dersan Front (→ Dersa) are liberation fronts (`ID.FRONTS`, `G.fronts`) that become states.
+- **Engine** `sim/sovereignty.js` (`ID.Sov`, generic, random worlds too): dependency (`n.dep = {over, kind, share,
+  gar, res, script}`; kinds vilayet, protectorate, mandate, treaty, client, union; tribute, vetoes in
+  `D.warBlock` and `Politics.lawAllowed`, garrison, deposition, petition/rise/collapse; an overlord defends its
+  dependencies; a great power may take a capitulating small state as a protectorate), oil (`P.oil`, `oilFound`,
+  `oilAt`, `oilCo`, `oilShare`, `canal`; price by era, ×2.5 after the 1973 shock; sell/nationalise; the crisis
+  answer: accept, embargo, coup with a head start, invade with the new cb `order`), intervention (bloc leaders arm
+  proxies, court the unaligned, take client bases, restore order), unions (`Sv.unite`: junior becomes kind
+  `union`, tension = res), fronts (`Sv.spawn`, `Sv.frontRise`). Scenario dependencies carry `dep.script`: in
+  historical mode the AI on either side waits for the chapters. New effect keys `dep`, `oil`, `front`, `union`,
+  `nbOp`, `nbTreaty`; new note kinds `concession`, `base`, `arms`. Saved: provinces' oil fields, `G.fronts`.
+- **Ideologies**: Third Positionism (`thirdpos`), Pan-Nationalism (`pannat`; two pan-national states not in one
+  union get −75 opinion: the rival wings), Religious Revival (`revival`). Every table filled; `node
+  tools/metrics.js tables` checks all 25 against every per-ideology table. Drift roads into them from junta,
+  theocracy and absolute monarchy.
+- **Content** `data/oldlands.js`: national layer for the seven (casts, national questions, 14 turning points),
+  identities, oil fields and the Canal, about 35 chapters 1911–1975 with press stories and four superevents
+  (mandates, partition, the setback of 1967, the embargo), player-only beats for Norvik, Cassine, Karsova,
+  Hesperia and Aurelia. Structural beats (`b.struct`) also run quietly for campaigns that start after them
+  (`ID.Story.structural`). `data/oldtrees.js`: trees, destinies, projects, foreign programmes. Fifth secret road:
+  Amaran, *The Shared House* (`binational`, sim/secret.js), tested end to end.
+- **UI** `ui/sovereignty.js`: the Sovereignty panel (rail tab, key U), Report items, handbook page
+  "Sovereignty and oil"; oil derricks on the map (`ui/render.js`, zoom 2+). Setup lists the 24 states.
+- **Events** (`data/dispatches.js` 74 new ordinary dispatches + 5 sovereignty dispatches; 6 new variant sets in
+  `data/variety.js`; engine `sim/events.js`): at most 3 per kind per campaign (`def.recur`: the two harvest
+  dispatches, 5), each repeat's cooldown multiplied by its count, none for the player within 3 months of a
+  system/story/national dispatch (`n.a.lastSys`), at most 4 AI random draws a month world-wide, player draw
+  chance capped at 0.2 and cooldown 6 months.
+- **Pacing** (`sim/ai.js`, `sim/diplomacy.js`): truces 8 years; an AI state rests 4 years after a peace
+  (except against a state in civil war or the runaway power); offensive call-ins only for members bordering the
+  enemy, except in the two world wars (historical) and in coalitions; defensive call-ins for members that can
+  reach the war; phony wars (no border, nothing taken for a year) end in white peace outside those cases; peace
+  offers to a human every 6 months instead of 18; era aggression `[0.6, 0.95, 1.4, 1.1]`; historical AI −0.15
+  after 1945; a coalition strong enough together declares war on its menace.
+- **Trees** (`data/trees2.js`): a nine-programme branch per national tree (root → two exclusive roads of three →
+  two capstones; great powers' branches act on the Old Lands), a late exclusive pair per ideology tree, and a
+  mechanical pass over the 286 programmes whose effects were only numbers: each gets a neighbour, treaty or
+  inner-circle effect and its "for good" modifiers last 240 months.
+
+| Measure (10 runs, 60 years) | Before | After |
+|---|---|---|
+| Random dispatches to the player | 60.0 | 39.9 |
+| Distinct share (avg / worst run) | 71% / 57% | 90% / 78% |
+| Most times one dispatch fired | 5 | 3 |
+| Pool of random dispatches | 102 | 176 |
+| Historical: country-months at war (all / outside world wars) | 11% / 7% | 7% / 4% |
+| Historical: peace spell median (mean) | 4.4 y (9.1) | 7.5 y (12.8) |
+| Historical: world-war years at war (1916, 1940) | 34%, 50% | 38%, 27% |
+| Historical: wars per run / civil wars | 23.3 / 4.2 (17 states) | 27.9 / 3.3 (24 states) |
+| Historical: alliance call-ins per run | 61.5 | 52.6 |
+| Historical: largest state (avg / max) | 24% / 36% | 19% / 25% |
+| Random: at war / peace median / largest (avg, max) | 10% / 4.0 y / 24%, 41% | 5% / 9.5 y / 24%, 42% |
+| Human proxy (accepts half of peace offers): at war / outside world wars / peace median / fell | 9% / 9% / 4.4 y / 6 of 10 | 6% / 3% / 5.4 y / 4 of 10 |
+| Soak, AI playing the player (historical): won / survived / fell | 5 / 3 / 9 of 17 | 6 / 6 / 12 of 24 |
+| National trees: fewest programmes / shortest playthrough | 23 / 18.0 y | 32 / 25.1 y |
+| Ideology trees | 7 | 9 |
+
+Notes: before-numbers were re-measured on the original code with the same tool (pacing runs have no player; a
+first version of the tool stopped a run when the AI-played player fell). Wars per run went up in historical mode
+because there are 24 states and the new continent's own wars (independence, partition, 1967, 1974); per state it
+fell from 1.37 to 1.16. The target of 15 wars a run was not met. Simulate: 9 random runs, largest 23% avg, 42%
+max. Fixed on the way: two crashes when a great power the chapters name has been destroyed (the 1953 coup),
+and an old one in the AI's coup targeting when every candidate has stability 100. Tested by hand in the browser: setup (24 states), a Khemra campaign run 22 years in the page with every
+dispatch settled by the ministers, every panel and the handbook page rendered, the programme tree, save/load
+(330 KB) with oil, Canal and fronts restored, no console errors. Not seen in the browser: the oil marks on the
+map, a superevent of the Old Lands, a nationalisation crisis or union from the player's side.
 
 ## Published (end of session 2)
 

@@ -171,6 +171,7 @@
     const I = ID.ideo(n);
     const list = cat === 'recruit' ? I.recruit.allowed : cat === 'mobil' ? ['peace', 'partial', 'total'] : I.laws[cat];
     if (list.indexOf(opt) < 0) return 'Not compatible with ' + I.name + '.';
+    if (ID.Sov && n.dep && (cat === 'trade' || cat === 'mobil' || cat === 'recruit') && ID.Sov.vetoes(G, n, 'law')) return 'Your overlord, ' + G.nations[n.dep.over].name + ', decides this.';
     const o = cat === 'recruit' ? ID.RECRUIT[opt] : ID.LAWS[cat].opts[opt];
     if (o.needs === 'era1' && ID.eraOf(G.tick) < 1) return 'Needs the Age of Masses (1925).';
     if (o.needs === 'era2' && ID.eraOf(G.tick) < 2) return 'Needs the Age of Total War (1940).';
@@ -452,6 +453,10 @@
         case 'authoritarian': w = (50 - fs.military) * 0.4 + (50 - n.stab) * 0.3; if (I.id === 'technocracy') w *= 0.3; break;
         default: w = I.id === 'natpop' ? (50 - n.stab) * 0.45 + (n.depression ? 14 : 0) + (n.lostWarAt != null && n.age - n.lostWarAt < 60 ? 10 : 0) : I.id === 'merchant' ? 0 : era >= 2 ? (52 - fs.intelligentsia) * 0.2 * u : 0;
       }
+      // the post-colonial ideas: strongest where foreigners rule or the secular nation has failed
+      if (I.id === 'thirdpos') w = (n.dep ? 14 : 0) + (era >= 2 ? (50 - fs.peasants) * 0.25 + (50 - fs.military) * 0.15 : 0);
+      else if (I.id === 'revival') w = Math.max(0, w) * 0.5 + (n.flags.discredited ? 12 : 0) + (n.dep ? 8 : 0) + (era >= 3 ? (50 - fs.clergy) * 0.2 * u : 0);
+      if (G.scenario === 'meridia' && (I.id === 'thirdpos' || I.id === 'pannat' || I.id === 'revival')) w *= Pr.region === 'old' ? 2 : 0.35;
       if (w <= 0) return 0;
       const dist = ID.ideoDist(n.ideo, I.id);
       w *= clamp(dist / 1.2, 0.2, 1.3);

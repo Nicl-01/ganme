@@ -176,6 +176,7 @@
     }
 
     if (ID.Regime && ID.Regime.advice) ID.Regime.advice(G, n, add);
+    if (ID.Sov && ID.Sov.advice) ID.Sov.advice(G, n, add);
 
     /* the quieter matters */
     if (!(n.path && n.path.cur) && ID.Focus.available(G, n).length) add(40, 'No programme under way', 'Every month without one is wasted.', [{ label: 'Open the tree', act: 'tree', arg: 'nat' }, go('Programme', 'prog')]);

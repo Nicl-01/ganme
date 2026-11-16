@@ -720,6 +720,113 @@
     flaws: ['Scapegoating leaves grievance, isolation and a duller economy behind.', 'Everything abroad distrusts an extreme nationalist.', 'A lost war or a fading leader breaks the spell.'],
   });
 
+  /* ================================================================ the post-colonial century (session 10) */
+  def({
+    id: 'thirdpos', name: 'Third Positionism', family: 'heterodox', color: [196, 120, 40], title: 'Republic of {N}',
+    short: 'Neither the banker nor the commissar: a national state that plans, builds and takes orders from no bloc.',
+    theory: 'Capitalism and communism are two faces of the same foreign domination: one sells the nation, the other dissolves it into a class. The third position sets the nation above both. Labour and capital sit in compulsory chambers under a state that owns the commanding heights, builds the dams and steel mills itself, and trades with every camp while joining none. It is a doctrine of officers and engineers in countries that were somebody else’s colony, and its strength is also its danger: everything depends on the state, and the state is a handful of men.',
+    axes: { econ: -0.15, auth: 0.6, trad: 0.1, intl: -0.4 }, rivals: [],
+    econ: { model: 'pact', tax: 30, taxMin: 15, taxMax: 50, pact: 52, invest: 0.18, cycle: 0.45, eff: 1.0 },
+    budget: { welfare: 0.14, security: 0.09, science: 0.08, arms: 0.18, heavy: 0 },
+    control: { type: 'decree', body: 'Revolutionary Command Council', auth: 3.2, warVote: 0, cap: 1, lawCost: 7, griev: 0.7 },
+    elections: 0,
+    recruit: { allowed: ['conscription', 'professional', 'levee'], def: 'conscription' },
+    doctrine: { atk: 1.0, def: 1.1, home: 1.2, morale: 'charisma', styles: { advance: 1, assault: 1.05, blitz: 0.9, infiltrate: 0.95, siege: 1.0 } },
+    fbase: { workers: 8, peasants: 10, capital: -10, military: 16, clergy: -6, intelligentsia: 4, bureaucracy: 10 },
+    fpow: { military: 1.6, bureaucracy: 1.4, capital: 0.6, clergy: 0.8 }, ruling: ['military', 'bureaucracy'],
+    legit: { charisma: 0.3, competence: 0.25, order: 0.2, prosperity: 0.25 },
+    laws: { press: ['regulated', 'censored', 'propaganda'], security: ['police', 'secret'], land: ['smallholder', 'collective', 'landlord'], labor: ['company', 'banned'], religion: ['secular', 'tolerance', 'statechurch'], trade: ['protect', 'autarky', 'free'] },
+    lawDef: { press: 'regulated', security: 'police', land: 'smallholder', labor: 'company', religion: 'secular', trade: 'protect' },
+    dip: { export: 0.35, agg: 0.45, trade: 0.8, cb: ['claims', 'liberate'] },
+    flags: { nonAligned: 1, tradeAll: 1 },
+    drift: [
+      { to: 'junta', label: 'The officers keep the state', why: 'The command council loses its doctrine and keeps its tanks.',
+        pressure: (n) => b(P(n, 'military') > 26) * 0.4 + b(lost(n)) * 0.4 + b(n.charisma < 40) * 0.2 - 0.45 },
+      { to: 'pannat', label: 'One nation, many states', why: 'A third position for one country becomes a mission for the whole people across every border.',
+        pressure: (n) => b(n.charisma > 65) * 0.3 + b(n.glory > 55) * 0.3 + b(n.flags.panCall) * 0.4 - 0.45 },
+      { to: 'personalist', label: 'The Rais', why: 'The council becomes one man, and the man becomes the nation.',
+        pressure: (n) => b(n.charisma > 75) * 0.5 + b(L(n, 'press', 'propaganda')) * 0.3 - 0.45 },
+    ],
+    objective: { name: 'The Third World', desc: 'Belong to no bloc for fifteen years, trade with states of three different families of ideas, and build an industry of your own (industrial technology 6).',
+      parts: (n, G) => [['Years outside every bloc', n.cnt.nonaligned || 0, 15], ['Families of ideas you trade with', ID.Sov ? ID.Sov.tradeFamilies(G, n) : 0, 3], ['Industrial technology', n.tech.ind, 6]] },
+    perks: ['Trades with every camp and courted by both blocs: aid, arms and dams from either side.', 'State investment: the economy grows faster than a pact economy usually does.', 'Nationalisation is cheap and popular.'],
+    flaws: ['Joining a bloc ends the doctrine’s legitimacy.', 'The officers are the state: a lost war or a dull leader brings the colonels back.', 'Everything rests on one council.'],
+  });
+
+  def({
+    id: 'pannat', name: 'Pan-Nationalism', family: 'authoritarian', color: [40, 110, 72], title: '{A} Republic of the Renaissance',
+    short: 'One nation from the mountains to the sea, divided by borders other people drew. The party will erase them.',
+    theory: 'The people is one, its borders are an insult, and its states are provinces waiting to be reunited. A single party of teachers, officers and students carries the idea; the army carries the party. The economy is nationalised in the name of the people rather than a class, and every other state of the nation is either a future partner in union or a traitor. Its great weakness is that each of its parties believes itself the true one: two pan-national regimes are more likely to hate each other than anyone else.',
+    axes: { econ: -0.45, auth: 0.8, trad: 0.15, intl: 0.35 }, rivals: [],
+    econ: { model: 'plan', share: 0.52, eff: 0.97, dist: 0.12 },
+    budget: { welfare: 0.15, security: 0.11, science: 0.06, arms: 0.22, heavy: 0.14 },
+    control: { type: 'party', body: 'Regional Command', auth: 3.4, warVote: 0, cap: 1, lawCost: 8, griev: 0.9 },
+    elections: 0,
+    recruit: { allowed: ['conscription', 'levee', 'professional'], def: 'conscription' },
+    doctrine: { atk: 1.05, def: 1.05, home: 1.15, morale: 'workers', styles: { advance: 1, assault: 1.2, blitz: 1.0, infiltrate: 0.85, siege: 1.0 } },
+    fbase: { workers: 6, peasants: 4, capital: -26, military: 14, clergy: -16, intelligentsia: 8, bureaucracy: 14 },
+    fpow: { military: 1.7, bureaucracy: 1.6, capital: 0.3, clergy: 0.6 }, ruling: ['military', 'bureaucracy'], fnames: { bureaucracy: 'Party apparatus' },
+    legit: { discipline: 0.3, fervor: 0.3, victory: 0.2, order: 0.2 },
+    laws: { press: ['censored', 'propaganda', 'regulated'], security: ['secret', 'police', 'terror'], land: ['collective', 'smallholder'], labor: ['company', 'banned'], religion: ['secular', 'tolerance'], trade: ['protect', 'autarky'] },
+    lawDef: { press: 'censored', security: 'secret', land: 'smallholder', labor: 'company', religion: 'secular', trade: 'protect' },
+    dip: { export: 0.6, agg: 0.6, trade: 0.45, cb: ['liberate', 'claims'] },
+    flags: { panNation: 1, satellite: 1 },
+    drift: [
+      { to: 'personalist', label: 'The party becomes the President', why: 'Purge by purge the regional command shrinks to a single man and his cousins.',
+        pressure: (n) => b(L(n, 'security', 'terror')) * 0.4 + b(n.charisma > 70) * 0.3 + b(P(n, 'military') > 30) * 0.2 - 0.45 },
+      { to: 'junta', label: 'The army takes the party', why: 'Officers who carried the party to power decide they no longer need it.',
+        pressure: (n) => b(P(n, 'military') > 32) * 0.4 + b(n.discipline < 40) * 0.4 + b(lost(n)) * 0.2 - 0.45 },
+      { to: 'revival', label: 'Faith instead of the nation', why: 'The secular nation lost its wars; the mosques and the young look elsewhere.',
+        pressure: (n) => b(lost(n)) * 0.5 + b(S(n, 'clergy') > 55) * 0.3 + b(n.flags.discredited) * 0.4 - 0.5 },
+    ],
+    objective: { name: 'One Nation', desc: 'Unite two other states of the nation with yours in a union that lasts, hold every province the party claims, and keep the party’s unity at 70.',
+      parts: (n, G) => [['States brought into union', ID.Sov ? ID.Sov.unionCount(G, n) : 0, 2], ['Claimed provinces held', ID.claimShare(G, n), 1, '%'], ['Party unity at 70 or above', b((n.sig || 0) >= 70), 1]] },
+    perks: ['Can proclaim a union with another pan-national state and grow by consent rather than conquest.', 'Movements of the nation abroad answer the party’s call.', 'The army is the party’s: coups from outside it are rare.'],
+    flaws: ['Two pan-national regimes are each other’s worst enemies unless they share a union.', 'Unions break: the junior partner’s officers resent the senior’s.', 'A lost war discredits the whole idea.'],
+  });
+
+  def({
+    id: 'revival', name: 'Religious Revival', family: 'conservative', color: [24, 96, 60], title: 'Guided Republic of {N}',
+    short: 'Not the old clerics of the palace: a movement of the poor, the students and the bazaar, against the foreigner and his kings.',
+    theory: 'The nationalists promised dignity and lost the wars; the communists promised bread and brought the commissar; the kings promised order and sold the oil. The revival says all three failed because they were imported, and offers the one thing the foreigner did not bring: the faith, read as a programme for justice, charity and independence. It is modern in its methods (cassette sermons, mass marches, welfare networks, a revolutionary guard) and ancient in its claims. Once in power it must decide whether it is a revolution or a government.',
+    axes: { econ: -0.1, auth: 0.75, trad: 0.9, intl: 0.3 }, rivals: ['theocracy'],
+    econ: { model: 'pact', tax: 24, taxMin: 10, taxMax: 40, pact: 58, invest: 0.1, cycle: 0.5, eff: 0.95 },
+    budget: { welfare: 0.2, security: 0.12, science: 0.04, arms: 0.2, heavy: 0 },
+    control: { type: 'court', body: 'Council of Guardians', auth: 3.2, warVote: 0, cap: 1, lawCost: 8, griev: 0.7 },
+    elections: 0,
+    recruit: { allowed: ['levee', 'conscription', 'volunteer'], def: 'levee' },
+    doctrine: { atk: 1.0, def: 1.15, home: 1.3, morale: 'clergy', styles: { advance: 1, assault: 1.35, blitz: 0.7, infiltrate: 1.05, siege: 0.9 } },
+    fbase: { workers: 6, peasants: 12, capital: -6, military: -6, clergy: 30, intelligentsia: -14, bureaucracy: -4 },
+    fpow: { clergy: 2.2, peasants: 1.3, workers: 1.1, military: 0.8 }, ruling: ['clergy', 'peasants'],
+    legit: { divine: 0.45, fervor: 0.35, particip: 0.2 },
+    laws: { press: ['censored', 'propaganda', 'regulated'], security: ['police', 'secret', 'terror'], land: ['smallholder', 'commune'], labor: ['company', 'banned'], religion: ['statechurch'], trade: ['protect', 'autarky'] },
+    lawDef: { press: 'censored', security: 'police', land: 'smallholder', labor: 'company', religion: 'statechurch', trade: 'protect' },
+    dip: { export: 0.8, agg: 0.5, trade: 0.35, cb: ['holy', 'liberate'] },
+    flags: { holyWar: 1, partisans: 1, nonAligned: 1, sciPenalty: 0.15 },
+    drift: [
+      { to: 'theocracy', label: 'The revolution becomes a clergy', why: 'The guardians stop marching and start governing; the movement becomes an establishment.',
+        pressure: (n) => b(n.age > 96) * 0.3 + b(n.fervor < 40) * 0.4 + b(P(n, 'clergy') > 30) * 0.2 - 0.45 },
+      { to: 'natpop', label: 'The faith becomes a flag', why: 'A long war turns the revolution of the faithful into a war of the nation.',
+        pressure: (n) => b(war(n) && n.we > 40) * 0.4 + b(S(n, 'military') > 60) * 0.3 - 0.45 },
+      { to: 'liberal', label: 'The reformists', why: 'A generation that grew up under the guardians votes for the cleric who promises them a free newspaper.',
+        pressure: (n) => b(n.age > 180) * 0.3 + b(S(n, 'intelligentsia') > 55) * 0.3 + b(n.ls > 55) * 0.2 - 0.5 },
+    ],
+    objective: { name: 'The Awakening', desc: 'No foreign base, garrison or oil company on your soil, the clergy and the poor with you, and the revival ruling a tenth of humanity.',
+      parts: (n, G) => [['Free of foreign bases and concessions', b(ID.Sov ? ID.Sov.unbound(G, n) : 1), 1], ['Clergy support at 70 or above', b(S(n, 'clergy') >= 70), 1], ['World population under the revival', ID.popShare(G, (i) => i.id === 'revival'), 0.1, '%']] },
+    perks: ['Fervour and martyrs: hard to conquer, harder to occupy.', 'Its sermons travel: movements of the revival grow in pious provinces abroad.', 'Charity networks keep the poor loyal in a slump.'],
+    flaws: ['Research and foreign capital stay away.', 'Every king and every commissar fears it.', 'A revolution that must govern loses its fervour.'],
+  });
+
+  /* the older systems' roads into the new ones */
+  for (const [from, d] of [
+    ['junta', { to: 'thirdpos', label: 'The officers find a doctrine', why: 'Young officers who seized power to end corruption discover they need a programme: land reform, the dam, and no foreign masters.',
+      pressure: (n) => b(S(n, 'peasants') < 45) * 0.3 + b(n.flags.dependent || n.flags.wasDependent) * 0.4 + b(n.tech.ind < 3) * 0.2 - 0.5 }],
+    ['theocracy', { to: 'revival', label: 'The pulpit leaves the palace', why: 'Preachers who no longer need the ruler take the faith to the slums, and the slums answer.',
+      pressure: (n) => b(P(n, 'workers') > 18) * 0.3 + b(n.flags.dependent || n.flags.wasDependent) * 0.3 + b(S(n, 'clergy') < 55) * 0.3 - 0.5 }],
+    ['absmon', { to: 'revival', label: 'The turban against the crown', why: 'A modernising king who sold the oil and silenced the mosques finds the mosques were the last thing holding him up.',
+      pressure: (n) => b(L(n, 'religion', 'secular')) * 0.4 + b(S(n, 'clergy') < 40) * 0.3 + b(n.flags.oilSold) * 0.2 - 0.55 }],
+  ]) { const I = list.find((x) => x.id === from); if (I) I.drift.push(d); }
+
   ID.IDEOLOGIES = {};
   ID.IDEO_LIST = list;
   for (const i of list) {

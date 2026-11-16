@@ -1,7 +1,5 @@
 'use strict';
-const path = require('path'); const root = path.join(__dirname, '..', 'js'); globalThis.ID = {};
-for (const f of ['core/util', 'data/base', 'data/ideologies', 'data/names', 'data/events', 'data/fortune', 'data/arcs', 'data/variety', 'data/focus', 'data/destiny', 'data/story2', 'data/expand', 'data/doctrine', 'data/ideotrees', 'data/regime', 'data/national', 'data/projects', 'data/foreign', 'data/press', 'sim/mapgen', 'sim/world', 'sim/combat', 'sim/economy', 'sim/politics', 'sim/diplomacy', 'sim/events', 'sim/focus', 'sim/doctrine', 'sim/regime', 'sim/press', 'sim/secret', 'sim/ai', 'sim/game']) require(path.join(root, f + '.js'));
-const ID = globalThis.ID;
+const ID = require('./load.js');
 // every nation as a human player who never touches anything: what happens to its treasury?
 const G = ID.newGame({ seed: 5, scenario: process.argv[2] || 'meridia', headless: true });
 for (const n of ID.alive(G)) n.ai = false;

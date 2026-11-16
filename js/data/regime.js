@@ -46,6 +46,9 @@
     corporatist: B('Grand Council', 'Grand Chamber', 48, ['Marshal of the Army', 'Chief of Police', 'Minister of Corporations', 'Party Secretary', 'Foreign Minister'], 'purge'),
     technocracy: B('Directorate', 'Directorate Review', 48, ['Director of Defence', 'Director of Public Order', 'Director of Production', 'Director of Statistics', 'Director of Foreign Trade'], 'dismiss'),
     personalist: B('Inner Circle', 'The Leader’s Address', 36, ['Commander of the Guard', 'Head of State Security', 'Minister of the Economy', 'Keeper of the Cult', 'Foreign Minister'], 'purge'),
+    thirdpos: B('Revolutionary Command Council', 'Session of the Command Council', 36, ['Commander-in-Chief', 'Minister of the Interior', 'Minister of Industry', 'Minister of National Guidance', 'Foreign Minister'], 'dismiss'),
+    pannat: B('Regional Command', 'Regional Congress', 48, ['Head of the Military Committee', 'Director of State Security', 'Minister of Planning', 'Secretary for Ideology', 'Foreign Minister'], 'purge'),
+    revival: B('Council of Guardians', 'Assembly of Experts', 48, ['Commander of the Guard', 'Minister of Intelligence', 'Head of the Foundations', 'Leader of Friday Prayers', 'Foreign Minister'], 'disgrace'),
     natpop: B('Movement Leadership', 'Party Rally', 36, ['Commander of the Legions', 'Chief of the Political Police', 'Minister of Economics', 'Chief of Propaganda', 'Foreign Minister'], 'purge'),
   };
   R.purgeName = { purge: 'Purge', recall: 'Recall', dismiss: 'Dismiss', disgrace: 'Disgrace' };
@@ -163,6 +166,21 @@
       L('pe_glory', 'Glory to the Leader', 'A new statue in every town and a new title for the Leader.', 'personalist', { legit: 3, unrest: -2 }, [['charisma', 8]], 0.5, () => 1.3),
       L('pe_peace', 'The Leader’s peace', 'The Leader is tired of enemies. Let the country rest and be grateful.', 'conmon', { stab: 3, ls: 1 }, [], -0.3, (n) => (n.stab < 40 ? 2 : 0.6)),
       L('pe_fortress', 'The fortress nation', 'Enemies on every border; traitors behind every door. The nation must be a fortress.', 'personalist', { def: 0.08, trade: -0.08, coup: -0.2 }, [], 0.3, (n) => (n.a.threatened ? 2 : 0.8)),
+    ],
+    thirdpos: [
+      L('tp_build', 'Build the nation', 'The dam, the steel mill and the fertiliser plant before anything else.', 'thirdpos', { prod: 0.05, ls: -1 }, [], 0.3, (n) => (n.tech.ind < 5 ? 1.6 : 0.8)),
+      L('tp_neutral', 'Positive neutrality', 'Take aid from both blocs, sign nothing with either.', 'thirdpos', { trade: 0.06, legit: 2 }, [['gold', 60]], 0.5, (n) => (n.bloc ? 0.3 : 1.4)),
+      L('tp_west', 'The open door', 'Foreign capital back in, the chambers loosened, the officers richer.', 'liberal', { conf: 6, prod: 0.03, legit: -2 }, [['sup', 'capital', 8]], -0.6, (n) => (n.gold < 50 ? 1.6 : 0.5)),
+    ],
+    pannat: [
+      L('pn_union_line', 'Union now', 'Every resource of the party for unity with the brother states.', 'pannat', { legit: 3, trade: -0.03 }, [], 0.6, () => 1.2),
+      L('pn_region', 'The region first', 'Build the party at home before exporting it; the brother capitals can wait.', 'junta', { stab: 3, prod: 0.03 }, [], -0.2, (n) => (n.stab < 45 ? 1.8 : 0.7)),
+      L('pn_iron', 'The iron hand', 'Informers in every block, the other wing in prison, the army watched by the party and the party by the army.', 'personalist', { unrest: -4, coup: -0.25, legit: -2 }, [['grievance', 8]], 0.2, (n) => (n.coupRisk > 0.005 ? 2 : 0.6)),
+    ],
+    revival: [
+      L('rv_export', 'Export the revolution', 'Our revolution is the beginning of a world revolution of the oppressed.', 'revival', { legit: 2, trade: -0.05 }, [], 0.6, () => 1.1),
+      L('rv_govern', 'Govern the republic', 'Ministries, budgets and roads: a revolution must also run the buses.', 'theocracy', { stab: 3, eff: 0.03 }, [], -0.4, (n) => (n.stab < 45 ? 1.8 : 0.7)),
+      L('rv_war', 'The sacred defence', 'Every family gives a son; every street is named for a martyr.', 'revival', { def: 0.08, wePace: -0.3, ls: -2 }, [['fervor', 8]], 0.4, (n) => (n.nwars ? 2 : 0.4)),
     ],
     natpop: [
       L('np_march', 'The march goes on', 'The movement must keep moving or it dies.', 'natpop', { atk: 0.06, legit: 2, ls: -1 }, [], 0.6, () => 1.3),

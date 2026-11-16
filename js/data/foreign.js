@@ -106,6 +106,9 @@
     aid: ['A gift from {F}', '{F} offers 120 gold in credits and a mission of advisers, to be spent as we see fit and to be remembered.', 'Accept', 'We need nothing from them', '+120 gold, stability +3, relations +20.', 'Relations −5.'],
     toll: ['{F} names a price for passage', '{F} informs us that our ships will pay a toll on every passage from now on, as everyone else does. The alternative is not spelled out.', 'Pay the toll', 'Our ships will pass free', 'Revenue −2% for ten years; relations +10.', 'Relations −15.'],
   };
+  K.concession = ['{F} wants our oil', '{F} asks for a concession on our oil fields: its company will drill, refine and ship, and pay us royalties and a large sum on signature.', 'Sign the concession', 'The oil stays ours', 'Gold now; the company takes most of the oil income for as long as the concession lasts.', 'Relations −5.'];
+  K.base = ['{F} asks for a base', '{F} proposes a treaty of friendship: an air base and a naval station on our soil, aid every year, and its protection if anyone attacks us.', 'Grant the base', 'No foreign soldiers on our soil', 'We become {F}\u2019s client: protection and aid, a foreign garrison, and our neighbours\u2019 suspicion.', 'Relations −5.'];
+  K.arms = ['{F} offers arms', '{F} offers rifles, artillery and instructors, on credit, with no conditions written down.', 'Accept the arms', 'Refuse', 'Troops and equipment; relations +15. The unwritten conditions will come later.', 'Relations −5.'];
   ID.NOTE_KINDS = K;
   ID.EVENT_DEFS.push({ id: 'fp_note', sys: 1, tone: 'mixed', sfx: 'stamp', kicker: 'A diplomatic note',
     title: (n, G, c) => K[c.kind][0].replace('{F}', G.nations[c.from].base),

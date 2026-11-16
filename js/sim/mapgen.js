@@ -8,9 +8,11 @@
     small: { W: 288, H: 162, nations: 12, name: 'Compact', desc: '12 states. Shorter, more crowded campaigns.' },
     std: { W: 384, H: 216, nations: 18, name: 'Standard', desc: '18 states. The intended size.' },
     large: { W: 480, H: 270, nations: 24, name: 'Vast', desc: '24 states. Long campaigns on a bigger world.' },
+    hist: { W: 384, H: 288, nations: 24, name: 'Three continents', desc: 'The handcrafted world of 1910.', hidden: 1 },
   };
 
-  /* opts: { seed, size, blobs?: [[x,y,r],...] (fractions; handcrafted layout), land?: target land fraction } */
+  /* opts: { seed, size, blobs?: [[x,y,r],...] (fractions; handcrafted layout), land?: target land fraction,
+     noiseH?: the map height the noise is scaled to (a taller map keeps the old rows' terrain) } */
   ID.genMap = function (opts) {
     const sz = ID.MAP_SIZES[opts.size || 'std'];
     const W = sz.W, H = sz.H, N = W * H;
@@ -33,7 +35,7 @@
     }
 
     const elev = new Float32Array(N);
-    const asp = W / H;
+    const asp = W / H, ns = H / (opts.noiseH || H); // ns rescales the noise so rows added below leave the old rows' terrain alone
     for (let y = 0; y < H; y++) {
       for (let x = 0; x < W; x++) {
         const fx = x / W, fy = y / H;
@@ -43,7 +45,7 @@
           f += Math.exp(-(dx * dx + dy * dy) / (r * r));
         }
         if (f > 1.25) f = 1.25;
-        const nz = noise.fbm(fx * 6.5 * asp * 0.6, fy * 6.5 * 0.6, 5);
+        const nz = noise.fbm(fx * 6.5 * asp * 0.6 * ns, fy * 6.5 * 0.6 * ns, 5);
         const edge = Math.min(x, W - 1 - x, y, H - 1 - y) / (0.05 * W);
         elev[y * W + x] = f * 0.7 + nz * 0.55 - (edge < 1 ? (1 - edge) * 0.9 : 0);
       }
@@ -87,9 +89,9 @@
         const i = y * W + x; if (terrain[i] === T.SEA) continue;
         const fx = x / W, fy = y / H;
         const h = (elev[i] - sea) / (emax - sea);
-        const ridge = 1 - Math.abs(noise2.fbm(fx * 9 * asp * 0.6, fy * 9 * 0.6, 4)) * 2.2;
-        const moist = noise.fbm(fx * 5 * asp * 0.6 + 40, fy * 5 * 0.6 + 40, 4);
-        const fert = noise2.fbm(fx * 8 * asp * 0.6 + 90, fy * 8 * 0.6 + 90, 3);
+        const ridge = 1 - Math.abs(noise2.fbm(fx * 9 * asp * 0.6 * ns, fy * 9 * 0.6 * ns, 4)) * 2.2;
+        const moist = noise.fbm(fx * 5 * asp * 0.6 * ns + 40, fy * 5 * 0.6 * ns + 40, 4);
+        const fert = noise2.fbm(fx * 8 * asp * 0.6 * ns + 90, fy * 8 * 0.6 * ns + 90, 3);
         const m = h * 0.55 + ridge * 0.5;
         let t;
         if (m > 0.74 && h > 0.14) t = T.MOUNTAIN;
@@ -212,6 +214,9 @@
 
     return { W, H, N, terrain, river, coast, prov, provinces, landCount: land.length, seed: opts.seed, size: opts.size || 'std' };
   };
+
+  /* Map options for a world: a scenario's own layout, or (for saves made before the scenario grew) its legacy one. */
+  ID.mapOpts = (sc, seed, size) => (sc && sc.legacy && size !== sc.size ? { seed, size, blobs: sc.legacy } : { seed, size, blobs: sc ? sc.blobs : null, noiseH: sc ? sc.noiseH : 0, land: sc ? sc.land : 0 });
 
   /* BFS over sea from a set of start tiles; returns distance array (Int16, -1 unreachable) up to maxD. */
   ID.seaDistance = function (G, starts, maxD) {

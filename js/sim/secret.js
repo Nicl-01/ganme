@@ -1,4 +1,4 @@
-/* IRON DIALECTIC — secret roads. Four countries of The Two Continents hide a fourth road that no
+/* IRON DIALECTIC — secret roads. Five countries of The Three Continents hide a road that no
    menu shows: when the player's country stands in the right place at the right time, a dispatch
    reveals it. Taking it opens a secret programme tab, a secret ideology (a variant of an existing one,
    registered in ID.IDEOLOGIES but not in ID.IDEO_LIST, so it never appears in lists or random picks)
@@ -158,6 +158,36 @@
         parts: (n, G) => [['The flight to the Moon', b(n.flags.moon), 1], ['Years of the common task (stability 45+)', n.cnt.sustain || 0, 5]] },
       ending: 'There is a Karsovan flag on the Moon, and the dust around it carries the bootprints of three men from the steppe. The design bureaus are already drawing the next ships, for Mars, and in a sanatorium outside the capital the institute of the common task keeps its first patients in cold sleep, waiting for the science that will wake them. The Cosmists say the conquest of space was the easy part. The next task is the dead.',
       perks: ['Science and prestige above every other socialist system.'], flaws: ['The budget of the stars comes out of the shops.'] },
+    body: null,
+  });
+
+  /* ---------------------------------------------------------------- Amaran: the shared house */
+  def({
+    key: 'house', base: 'Amaran', parent: 'socdem', tab: 'The Shared House',
+    when: (G, n) => yr(G) >= 1936 && yr(G) <= 1947 && n.nq && n.nq.v >= 38 && n.nq.v <= 62 && n.stab >= 45 && !(G.fronts && G.fronts.return && G.fronts.return.state) && !n.nwars,
+    reveal: { art: 'peace', title: 'Two doors in one house',
+      text: 'An old schoolteacher from the hill villages and a doctor of the Return have been running a joint clinic in the market town for ten years. They have written a short proposal, two pages long, and both peoples’ newspapers have printed it on the same morning: one state, two languages, a constitution that neither people can change without the other, and a house with two doors. Most people on both sides think they are mad. Not all of them.',
+      yes: 'Open both doors', no: 'There is no such house' },
+    tree: [
+      { id: 'sx_am_clinic', name: 'The joint clinics', desc: 'A clinic in every mixed town, staffed by both peoples, open to both.', x: 0.5, y: 0, days: 120,
+        fx: [['mod', 'unrest', -3, PERM, 'The joint clinics'], ['fn', (G, n) => { if (n.nq) n.nq.v += (50 - n.nq.v) * 0.3; }], ['note', 'The land question moves toward the middle']] },
+      { id: 'sx_am_unions', name: 'One union for both', desc: 'Orange packers, dockers and railwaymen of both peoples in one union, with one strike fund.', x: 0, y: 1, req: ['sx_am_clinic'],
+        fx: [['sup', 'workers', 10], ['front', 'return', -10], ['mod', 'prod', 0.04, PERM, 'One union']] },
+      { id: 'sx_am_charter', name: 'The two-door charter', desc: 'A constitution with two chambers, two languages and a court of six judges, three from each people.', x: 1, y: 1, req: ['sx_am_clinic'],
+        fx: [['legitmod', 6, 120, 'The charter'], ['particip', 10], ['opAll', 6]] },
+      { id: 'sx_am_house', name: 'The Shared House', desc: 'The two peoples proclaim one republic. The extremists of both sides call it treason, and promise to make it fail.', x: 0.5, y: 2, req: ['sx_am_unions', 'sx_am_charter'], days: 180,
+        fx: [['fn', (G, n) => { const F = G.fronts && G.fronts.return; if (F && !F.state) { F.str = 0; F.state = n.id; } if (n.dep) ID.Sov.free(G, n, 'story'); }], ['ideology', 'binational', 'reform']] },
+      { id: 'sx_am_return', name: 'Both returns', desc: 'The refugees of one people and the immigrants of the other are both admitted, by the same law and the same quota.', x: 0.5, y: 3, req: ['sx_am_house'], days: 210,
+        fx: [['pop', 0.04], ['mod', 'growth', 0.06, PERM, 'Both returns'], ['opAll', 6], ['mod', 'unrest', 3, 60, 'Newcomers']] },
+    ],
+    ideo: { id: 'binational', name: 'Binationalism', color: [214, 140, 60], title: 'Shared Republic of {N}',
+      short: 'One land, two peoples, and a constitution that neither can change without the other.',
+      dip: { export: 0.1, agg: 0.1, trade: 0.9, cb: [] },
+      objective: { name: 'The House With Two Doors', desc: 'Keep the two peoples in balance (the land question between 40 and 60), hold every province of the land, and survive twelve years with stability 45 or more.',
+        sustain: (n) => n.stab >= 45 && n.nq && n.nq.v >= 40 && n.nq.v <= 60,
+        parts: (n, G) => [['The land question in balance (40–60)', n.nq ? b(n.nq.v >= 40 && n.nq.v <= 60) : 0, 1], ['Provinces of the land held', coresHeld(G, n), 1, '%'], ['Years the house has stood (stability 45+, in balance)', n.cnt.sustain || 0, 12]] },
+      ending: 'Twelve years on, the house still stands. It is not a happy house: the two chambers quarrel, the court is deadlocked half the year, and there are still men on both sides who would burn it down. But the children of the joint clinics are grown, they speak both languages, and when the old schoolteacher was buried, the procession was led by the doctor. The rest of the Old Lands watches and does not quite believe it. Neither, some mornings, does Amaran.',
+      perks: ['No partition, no war between the peoples, no camps.', 'Trade and goodwill from the whole world.'], flaws: ['Every decision needs both peoples.', 'Extremists on both sides want it to fail.'] },
     body: null,
   });
 

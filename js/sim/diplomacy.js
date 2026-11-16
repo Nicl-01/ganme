@@ -22,7 +22,7 @@
     if (I.dip.cb.indexOf('containment') >= 0 && Bn.threat > 35) return 'containment';
     return null;
   };
-  D.CB_NAMES = { cores: 'Reclaim our provinces', claims: 'Press our claims', ally: 'Defend an ally', coalition: 'Coalition against a menace', holy: 'Holy war', liberate: 'Liberate the oppressed', containment: 'Containment', civil: 'Civil war', independence: 'War of independence', alliance: 'Alliance obligations', none: 'Naked aggression' };
+  D.CB_NAMES = { cores: 'Reclaim our provinces', claims: 'Press our claims', ally: 'Defend an ally', coalition: 'Coalition against a menace', holy: 'Holy war', liberate: 'Liberate the oppressed', containment: 'Containment', civil: 'Civil war', independence: 'War of independence', alliance: 'Alliance obligations', order: 'Restore order', none: 'Naked aggression' };
 
   /* Why can't A declare war on B? '' if it can. */
   D.warBlock = function (G, A, Bn) {
@@ -31,6 +31,9 @@
     const d = ID.dipOf(G, A.id, Bn.id);
     if (d.truce > G.tick) return 'Truce until ' + ID.dateOf(d.truce).short + '.';
     if (ID.sameBloc(G, A.id, Bn.id)) return 'You are in the same bloc. Leave it first.';
+    if (ID.Sov && A.dep && A.dep.over === Bn.id && A.dep.kind !== 'client') return 'A dependency breaks free by rising, not by declaring war (see Sovereignty).';
+    if (ID.Sov && A.dep && A.dep.over !== Bn.id && ID.Sov.vetoes(G, A, 'war')) return 'Your overlord, ' + G.nations[A.dep.over].name + ', forbids it.';
+    if (ID.Sov && Bn.dep && Bn.dep.over === A.id && Bn.dep.kind !== 'client') return Bn.base + ' is your own dependency.';
     return '';
   };
 
@@ -71,13 +74,21 @@
           }
         }
       }
+      // an overlord defends its dependency (a union's senior partner is already at war through the union)
+      if (ID.Sov && Bn.dep && Bn.dep.kind !== 'union') {
+        const ov = G.nations[Bn.dep.over];
+        if (ov && ov.alive && ov !== A && !ID.atWar(G, ov.id, A.id) && !D.warBlock(G, ov, A)) {
+          if (ov.id === G.player && !G.autoPlayer) ID.Events.queue(G, ov, 'ally_attacked', { ally: Bn.id, enemy: A.id });
+          else if (G.rng.chance(0.75)) D.startWar(G, ov, A, 'alliance');
+        }
+      }
       // defender's bloc is called in
       if (Bn.bloc) {
         const bl = G.blocs[Bn.bloc];
         for (const mid of bl.members.slice()) {
           const m = G.nations[mid]; if (!m || !m.alive || m === Bn || m === A || ID.atWar(G, m.id, A.id)) continue;
           if (m.id === G.player) ID.Events.queue(G, m, 'ally_attacked', { ally: Bn.id, enemy: A.id });
-          else if (ID.op(G, m.id, Bn.id) > 10 && G.rng.chance(0.8)) D.startWar(G, m, A, 'alliance');
+          else if (ID.op(G, m.id, Bn.id) > 10 && (bl.leader === m.id || ID.borders(G, m.id, A.id) || ID.borders(G, m.id, Bn.id) || m.nb[B.PORT]) && G.rng.chance(0.7)) D.startWar(G, m, A, 'alliance'); // defending an ally: members who cannot reach the war stay out
           else if (G.rng.chance(0.3)) D.leaveBloc(G, m, false);
         }
       }
@@ -120,7 +131,8 @@
 
   D.endWarState = function (G, A, Bn, truce) {
     const d = ID.dipOf(G, A.id, Bn.id); if (!d.war) return;
-    d.war = 0; if (truce) d.truce = G.tick + 5 * 360;
+    d.war = 0; if (truce) d.truce = G.tick + 8 * 360; // eight years: peace should last long enough to be felt
+    A.a.lastPeace = Bn.a.lastPeace = G.tick;
     G.warM[A.id * MAXN + Bn.id] = G.warM[Bn.id * MAXN + A.id] = 0;
     A.nwars = Math.max(0, A.nwars - 1); Bn.nwars = Math.max(0, Bn.nwars - 1);
     if (A.objs) delete A.objs[Bn.id]; if (Bn.objs) delete Bn.objs[A.id];
@@ -202,6 +214,8 @@
     if (civil) { D.resolveCapitulation(G, L, Wn, 'annex'); return; }
     if (L.id === G.player) { ID.Game.defeat(G, 'conquered', { by: Wn.id }); return; }
     if (Wn.id === G.player) { L.a.capitulating = G.tick; ID.Events.queue(G, Wn, 'capitulation', { loser: L.id }); return; }
+    // a great power may keep a small defeated state as a protectorate instead of annexing it
+    if (ID.Sov && !L.dep && ID.isMajor(G, Wn) && !ID.isMajor(G, L) && L.tiles < Wn.tiles * 0.4 && !Wn.dep && G.rng.chance(0.3)) { D.resolveCapitulation(G, L, Wn, 'release'); ID.Sov.bind(G, L, Wn, 'protectorate'); return; }
     const I = ID.ideo(Wn);
     const mode = (I.flags.satellite || I.dip.export >= 0.5 || (Wn.a.noncoreShare || 0) > 0.3) && L.tiles > 60 && G.rng.chance(0.7) ? 'install' : 'annex';
     D.resolveCapitulation(G, L, Wn, mode);
@@ -330,6 +344,8 @@
     }
     if (kind === 'ally') {
       if (ID.areRivals(from.ideo, to.ideo)) return { ok: false, why: 'Sectarian rivals will not share a bloc.' };
+      if ((from.dep && ID.Sov.vetoes(G, from, 'war')) || (to.dep && ID.Sov.vetoes(G, to, 'war'))) return { ok: false, why: 'A dependency cannot join a bloc while its overlord decides its wars.' };
+      if (ID.ideo(to).flags.nonAligned && !to.a.threatened) return { ok: false, why: 'They belong to no bloc, by principle.' };
       const aff = ID.ideoAffinity(from.ideo, to.ideo);
       let common = 0; for (const e of D.enemies(G, to)) if (ID.atWar(G, from.id, e.id) || ID.op(G, from.id, e.id) < -40) common = 18;
       const s = op * 0.8 + aff * 0.6 + common - 38;
@@ -421,6 +437,9 @@
     if (kind === 'bloc') return !T.bloc && !ID.areRivals(A.ideo, T.ideo) && aff + op * 0.5 + rng.range(-10, 15) > 5;
     if (kind === 'aid') return !ID.areRivals(A.ideo, T.ideo) && op > -25;
     if (kind === 'toll') return op > -15 && rng.chance(r < 0.5 ? 0.6 : 0.3);
+    if (kind === 'concession') return ID.Sov.oilProvs(G, T).some((P) => !P.oilCo) && op > -20 && (T.gold < 150 || r > 2) && !ID.ideo(T).flags.nonAligned;
+    if (kind === 'base') return !T.dep && !T.bloc && !ID.ideo(T).flags.nonAligned && op + aff * 0.3 + (T.a.threatened ? 20 : 0) + rng.range(-15, 15) > 15;
+    if (kind === 'arms') return op > -10 && !ID.areRivals(A.ideo, T.ideo);
     return false;
   };
   D.noteAnswer = function (G, A, T, kind, yes) {
@@ -434,12 +453,15 @@
         T.stab -= 6; ID.addOpBoth(G, A.id, T.id, -20); A.glory = Math.min(100, (A.glory || 0) + 5);
       } else if (kind === 'bloc') { if (A.bloc && G.blocs[A.bloc]) D.joinBloc(G, T, A.bloc); else { d.nap = 1; ID.addOpBoth(G, A.id, T.id, 20); } }
       else if (kind === 'aid') { const g = Math.min(120, Math.max(0, A.gold)); A.gold -= g; T.gold += g; T.stab += 3; ID.addOpBoth(G, A.id, T.id, 20); }
+      else if (kind === 'concession') ID.Sov.sell(G, T, A);
+      else if (kind === 'base') ID.Sov.bind(G, T, A, 'client');
+      else if (kind === 'arms') { const t = Math.min(A.troops * 0.03, 40 + T.troops * 0.2); A.troops -= t; T.troops += t; A.gold -= 50; T.equip = Math.min(1.4, T.equip + 0.06); ID.addOpBoth(G, A.id, T.id, 15); }
       else if (kind === 'toll') { ID.addMod(T, 'rev', -0.02, 120, 'Toll to ' + A.base); ID.addMod(A, 'rev', 0.03, 120, 'Toll from ' + T.base); ID.addOpBoth(G, A.id, T.id, 10); }
     } else {
       ID.addOpBoth(G, A.id, T.id, kind === 'cede' ? -25 : kind === 'toll' ? -15 : kind === 'treaty' ? -8 : -5);
       if (kind === 'cede') A.flags['cbOn_' + T.id] = G.tick;
     }
-    const verb = { treaty: yes ? 'signs a treaty with' : 'refuses a treaty with', cede: yes ? 'hands provinces to' : 'refuses to cede provinces to', bloc: yes ? 'aligns itself with' : 'declines an alliance with', aid: yes ? 'accepts aid from' : 'refuses aid from', toll: yes ? 'agrees to pay a toll to' : 'refuses to pay a toll to' }[kind];
+    const verb = { concession: yes ? 'sells an oil concession to' : 'refuses an oil concession to', base: yes ? 'grants a base to' : 'refuses a base to', arms: yes ? 'accepts arms from' : 'refuses arms from', treaty: yes ? 'signs a treaty with' : 'refuses a treaty with', cede: yes ? 'hands provinces to' : 'refuses to cede provinces to', bloc: yes ? 'aligns itself with' : 'declines an alliance with', aid: yes ? 'accepts aid from' : 'refuses aid from', toll: yes ? 'agrees to pay a toll to' : 'refuses to pay a toll to' }[kind];
     if (A.id === G.player || T.id === G.player) ID.news(G, T.name + ' ' + verb + ' ' + A.name + '.', yes === (A.id === G.player) ? 'good' : 'dip', T.id, A.id);
     if (ID.Press && (kind === 'cede' || kind === 'bloc' || ID.isMajor(G, A))) ID.Press.add(G, { w: kind === 'cede' ? (yes ? 3 : 2) : 1, kind: 'dip', a: A.id, b: T.id, art: kind === 'cede' ? 'wall' : 'peace', key: 'note' + A.id + kind + T.id, gap: 600,
       title: T.base + ' ' + verb + ' ' + A.base,
@@ -604,6 +626,8 @@
       if (d && d.war) continue;
       let base = ID.ideoAffinity(a.ideo, b.ideo) + (ID.sameBloc(G, a.id, b.id) ? 38 : 0) + (d && d.trade ? 9 : 0) + (d && d.nap ? 6 : 0) - b.threat * (ID.borders(G, a.id, b.id) ? 0.55 : 0.3);
       if (a.claims.length && ID.borders(G, a.id, b.id)) base -= 8;
+      // the two wings of a pan-national movement: each regime is the other's traitor, unless they share a union
+      if (a.ideo === b.ideo && ID.ideo(a).flags.panNation && !((a.dep && a.dep.over === b.id) || (b.dep && b.dep.over === a.id))) base -= 75;
       const cur = G.rel[a.id * MAXN + b.id];
       G.rel[a.id * MAXN + b.id] = cur + (clamp(base, -100, 100) - cur) * 0.03;
     }

@@ -234,4 +234,33 @@
     ['community', 'The national community', 'One people, one will, one destiny, and no room for anyone else.', [['sig', 10], ['opAll', -4]]],
     ['millennium', 'The thousand-year state', 'Architects draw the capital as it will look in the year 3000.', [['charisma', 8], ['sig', 10], ['opAll', -5]]],
   ]);
+/* ---------------------------------------------------------------- post-colonial (session 10) */
+  tree('thirdpos', 'tp', [
+    ['charter', 'The national charter', 'Six principles on one page: independence, the end of feudalism, the end of monopoly, a strong army, social justice, a sound democracy (later).', [['sig', 8], ['legitmod', 4, 120, 'The charter']]],
+    ['develop', 'The developmental state', 'Five-year plans without commissars: the state builds the steel mill, the fertiliser plant and the aluminium smelter and lets private hands run the shops.', [['mod', 'prod', 0.05, PERM, 'The developmental state'], ['sup', 'bureaucracy', 6], ['techUp', 'ind']]],
+    ['corporate', 'The corporate state', 'Every trade in its chamber, every chamber in the council, every strike a crime against the nation.', [['mod', 'unrest', -3, PERM, 'The corporate state'], ['sup', 'capital', 6], ['sup', 'workers', -4]]],
+    ['steel', 'Steel without masters', 'A steel city in the desert, built with whichever bloc offered the best terms and owned by nobody but the state.', [['build', ID.B.FACTORY, 2], ['mod', 'prod', 0.04, PERM, 'Steel without masters']]],
+    ['unions', 'One union, one nation', 'The unions merged into one federation whose chairman sits on the command council.', [['sup', 'workers', 8], ['mod', 'conf', 4, PERM, 'One union'], ['sig', 6]]],
+    ['bandung', 'The conference of the non-aligned', 'Thirty delegations in one hall: the new states of the world declare that they belong to nobody.', [['opAll', 6], ['sig', 12], ['fn', (G, n) => { if (n.bloc) ID.Diplomacy.leaveBloc(G, n, false); }]]],
+    ['third', 'The third world', 'The word means the third estate of humanity: the many, poor and newly free.', [['sig', 10], ['mod', 'trade', 0.06, PERM, 'The third world'], ['glory', 6]]],
+  ], [1935, 1955]);
+  tree('pannat', 'pn', [
+    ['cells', 'The party cells', 'Schoolteachers and lieutenants in every town, meeting on Thursdays in rooms above the barbershop.', [['sig', 8], ['discipline', 6]]],
+    ['military', 'The military committee', 'The party’s officers form their own committee, and the committee decides who is promoted.', [['mod', 'coup', -0.3, PERM, 'The military committee'], ['sup', 'military', 8], ['mod', 'atk', 0.03, PERM, 'The military committee']]],
+    ['civil', 'The civilian founders', 'The old philosophers of the party, the men who wrote the creed, kept at the head of it.', [['mod', 'legit', 4, PERM, 'The founders'], ['sup', 'intelligentsia', 8]]],
+    ['nationalise', 'Socialism of the nation', 'Oil, banks, cotton, cement: nationalised in a single summer, in the name of the people rather than a class.', [['mod', 'prod', 0.04, PERM, 'Nationalised industry'], ['sup', 'capital', -10], ['fn', (G, n) => { if (ID.Sov) ID.Sov.nationaliseAll(G, n); }]]],
+    ['schools', 'A school in every village', 'The party’s first promise and the one it kept: literacy, in the language of the nation.', [['mod', 'sci', 0.08, PERM, 'Schools of the nation'], ['sup', 'peasants', 6]]],
+    ['congress', 'The national congress of the party', 'Delegates from every state of the nation, some of them governments, some of them exiles, all of them watching each other.', [['sig', 12], ['fn', (G, n) => { if (ID.Sov) ID.Sov.proposeUnion(G, n); }]]],
+    ['eternal', 'An eternal message', 'The party’s motto carved over every school: one nation with an eternal message.', [['sig', 10], ['charisma', 6], ['glory', 4]]],
+  ], [1940, 1958]);
+  tree('revival', 'rv', [
+    ['mosques', 'The network of the faithful', 'Study circles, clinics and soup kitchens: the movement does what the state never did.', [['sig', 8], ['sup', 'peasants', 6], ['sup', 'workers', 4]]],
+    ['guardians', 'Rule of the jurist', 'A single learned guardian above the elected government, with the last word on everything.', [['mod', 'stab', 4, PERM, 'Rule of the jurist'], ['sup', 'clergy', 10], ['auth', 15]]],
+    ['republic', 'A republic of the faithful', 'Elections among believers, a parliament with clerics in it, and a press that may criticise everything except the faith.', [['mod', 'legit', 4, PERM, 'A republic of the faithful'], ['sup', 'intelligentsia', 6], ['particip', 8]]],
+    ['courts', 'The revolutionary courts', 'The old regime’s generals, ministers and torturers before the people’s judges.', [['mod', 'coup', -0.3, PERM, 'The revolutionary courts'], ['grievance', 6], ['sig', 8]]],
+    ['bazaar', 'The bazaar’s revolution', 'The merchants who paid for the revolution want their reward: no taxes on trade, no foreign competitors.', [['sup', 'capital', 8], ['mod', 'trade', 0.05, PERM, 'The bazaar']]],
+    ['export', 'Export the revolution', 'A department for the oppressed of the world, with a budget no minister may see.', [['sig', 10], ['fn', (G, n) => { for (const o of ID.alive(G)) if (o !== n && o.ideo !== n.ideo && ID.op(G, n.id, o.id) < 0 && G.rng.chance(0.35)) ID.docSeed(G, o, 'revival', 8, 2, n.id); }]]],
+    ['neither', 'Neither east nor west', 'The slogan painted over the gate of the old foreign embassy.', [['sig', 10], ['opAll', -3], ['mod', 'def', 0.06, PERM, 'Neither east nor west']]],
+  ], [1945, 1960]);
+
 })();
