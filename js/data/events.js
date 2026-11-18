@@ -19,7 +19,9 @@
 
   /* ================================================================ SYSTEM EVENTS */
   function coupResolve(G, n, ctx, armed) {
-    const Pl = ID.Politics; let odds = 1 - Pl.coupOdds(G, n, ctx.backer); if (armed) odds += 0.2;
+    const Pl = ID.Politics;
+    if (Pl.inCivil(G, n)) { n.stab = clamp(n.stab - 5, 0, 100); n.sm.military -= 6; ID.news(G, 'With the country at war with itself, the plotters find no regiments to follow them. They are arrested.', 'good', n.id); return; }
+    let odds = Math.max(0.45, 1 - Pl.coupOdds(G, n, ctx.backer)); if (armed) odds += 0.2;
     const to = Pl.coupIdeo(G, n, ctx.backer);
     if (G.rng.chance(odds)) {
       n.stab = clamp(n.stab - 10, 0, 100); n.sm.military += 14; n.fs.military = Math.min(100, n.fs.military + 10); n.flags.coupSurvived = 1; n.prestige = Math.max(0, n.prestige - 25);

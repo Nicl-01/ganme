@@ -521,6 +521,7 @@
     n.ops.splice(n.ops.indexOf(o), 1); n.cd['coup_' + t.id] = G.tick + 4 * 360;
     f.backer = 0;
     ID.news(G, 'Before dawn, units loyal to ' + f.name + ' move on the ministries of ' + t.name + '.', 'pol', t.id);
+    if (t.id === G.player && !G.autoPlayer && ID.Politics.coupShield(G, t)) { t.stab = Math.max(0, t.stab - 3); ID.news(G, 'The plot of ' + f.name + ' fizzles: the army is in no mood for adventures. ' + n.name + ' wasted its money.', 'good', t.id, n.id); return ''; }
     if (t.id === G.player && !G.autoPlayer) { t.a.coupAt = G.tick; t.a.coupBoost = p; ID.Events.queue(G, t, 'coup', { backer: n.id, fig: f.name }); return ''; }
     if (!G.rng.chance(p)) {
       ID.Regime.replace(G, t, f, { loy: G.rng.int(64, 82) });

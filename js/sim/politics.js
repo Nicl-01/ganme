@@ -289,6 +289,9 @@
   };
 
   /* ---------------------------------------------------------------- coups */
+  /* at war with itself, or just out of one: the army is busy, a coup now would be suicide */
+  P.inCivil = (G, n) => !!((n.civil && G.nations[n.civil] && G.nations[n.civil].alive) || (n.civilOf && G.nations[n.civilOf] && G.nations[n.civilOf].alive));
+  P.coupShield = (G, n) => P.inCivil(G, n) || (n.a.civilEnd != null && G.tick - n.a.civilEnd < 1080) || (n.id === G.player && n.a.coupAt != null && G.tick - n.a.coupAt < 720);
   P.coupOdds = function (G, n, backed) {
     const sec = ID.LAWS.security.opts[n.laws.security];
     const base = clamp(0.35 + (50 - n.fs.military) / 100 + (50 - n.stab) / 150 + (50 - n.legit) / 150 - sec.detect * 0.2 + (backed ? 0.1 : 0), 0.08, 0.92);
@@ -598,14 +601,15 @@
 
     /* coup risk */
     let risk = 0;
-    if (!I.flags.noCoup) {
+    if (!I.flags.noCoup && !P.coupShield(G, n)) {
       const shaky = 1 + Math.max(0, 45 - n.stab) / 15 + Math.max(0, 45 - n.legit) / 20;
-      risk = (Math.max(0, 56 - n.fs.military) / 56) * (n.fp.military / 16) * (rec.coup != null ? rec.coup : 1) * (1 + n.prestige / 60) * shaky * 0.016;
+      risk = (Math.max(0, 56 - n.fs.military) / 56) * (n.fp.military / 16) * (rec.coup != null ? rec.coup : 1) * (1 + Math.min(n.prestige, 60) / 90) * Math.min(shaky, 3) * 0.016;
       if (n.fs.capital < 25 && n.fp.capital > 15 && n.fs.military < 50) risk += 0.012;
       if (n.prestige > 65 && n.legit < 45 && n.ideo !== 'junta') risk += 0.01;
       if (I.flags.colonels && n.fs.military < 50) risk += 0.008;
       risk *= n.ai ? 0.8 : diffP.crisis;
-      if (n.a.coupAt != null && G.tick - n.a.coupAt < 720) risk *= 0.2;
+      if (n.a.coupAt != null && G.tick - n.a.coupAt < (n.id === G.player ? 1440 : 720)) risk *= 0.2;
+      if (n.id === G.player) risk = Math.min(risk, 0.02);
       if (n.age < 18) risk *= 0.3;
       risk *= Math.max(0.15, 1 + ID.mod(n, 'coup'));
     }
