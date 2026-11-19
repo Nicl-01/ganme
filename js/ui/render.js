@@ -315,12 +315,33 @@
     const bs = clamp(z * 1.7, 7, 17);
     if (z >= 2.4) {
       const paper = css(PAPER), ink = css(INK), all = z >= 5.5;
+      const me0 = G.nations[G.player];
+      // fortress cover: the ring each of your forts (and your enemies') throws around itself, fainter as it is battered
       for (const i of G.blist) {
-        if (!all && (G.bld[i] === B.FACTORY || G.bld[i] === B.PORT) && G.owner[i] !== G.player) continue;
+        if (G.bld[i] !== B.FORT || !G.hp[i]) continue;
+        const o = G.owner[i]; if (o !== G.player && !(me0 && ID.atWar(G, me0.id, o))) continue;
+        const X = sx((i % W) + 0.5), Y = sy(((i / W) | 0) + 0.5), r = ID.FORT_RADIUS * z;
+        if (X < -r || Y < -r || X > cw + r || Y > ch + r) continue;
+        const a = 0.25 + 0.5 * G.hp[i] / 100;
+        ctx.strokeStyle = o === G.player ? css(RED, a) : css(INK, a); ctx.lineWidth = 2; ctx.setLineDash([6, 4]); ctx.beginPath(); ctx.arc(X, Y, r, 0, 6.3); ctx.stroke(); ctx.setLineDash([]);
+        ctx.fillStyle = o === G.player ? css(RED, 0.05) : css(INK, 0.06); ctx.fill();
+      }
+      for (const i of G.blist) {
+        if (!all && (G.bld[i] === B.FACTORY || G.bld[i] === B.PORT) && G.owner[i] !== G.player && G.hp[i] === 100) continue;
         const X = sx((i % W) + 0.5), Y = sy(((i / W) | 0) + 0.5);
         if (X < -20 || Y < -20 || X > cw + 20 || Y > ch + 20) continue;
-        const o = G.owner[i];
+        const o = G.owner[i], h = G.hp[i];
+        if (!h) { // a wreck: a grey ghost of the building, crossed out
+          glyph(G.bld[i], X, Y, bs, css([150, 142, 128], 0.85), css(INK, 0.6));
+          ctx.strokeStyle = css(RED2, 0.95); ctx.lineWidth = 2.5; ctx.beginPath(); ctx.moveTo(X - bs * 0.55, Y - bs * 0.55); ctx.lineTo(X + bs * 0.55, Y + bs * 0.55); ctx.moveTo(X + bs * 0.55, Y - bs * 0.55); ctx.lineTo(X - bs * 0.55, Y + bs * 0.55); ctx.stroke();
+          continue;
+        }
         glyph(G.bld[i], X, Y, bs, o === G.player ? css(RED) : paper, o === G.player ? paper : ink);
+        if (h < 100) { // condition bar under a damaged building
+          const w = bs * 1.2, y0 = Y + bs * 0.75;
+          ctx.fillStyle = css(INK, 0.75); ctx.fillRect(X - w / 2 - 1, y0 - 1, w + 2, 5);
+          ctx.fillStyle = h < 40 ? css(RED2) : css([201, 154, 46]); ctx.fillRect(X - w / 2, y0, w * h / 100, 3);
+        }
       }
       for (const q of G.builds) {
         const X = sx((q.i % W) + 0.5), Y = sy(((q.i / W) | 0) + 0.5);
@@ -398,6 +419,20 @@
       const X0 = sx(fp.ox), Y0 = sy(fp.oy), X1 = sx(fp.x), Y1 = sy(fp.y);
       arrow(X0, Y0, X1, Y1, clamp(z * 1.3, 7, 16), mine ? css(RED, 0.92) : css([60, 54, 46], 0.9), (a.to === 0 ? 'Expanding ' : '') + ID.fmtPop(a.troops));
     }
+    // trade routes, while the Economy panel is open: solid by land, dashed by sea, dotted when forced overland
+    if (ID.UI && ID.UI.tab === 'eco' && me && me.alive && me.capital >= 0 && me.a.routes) {
+      const x0 = sx((me.capital % W) + 0.5), y0 = sy(((me.capital / W) | 0) + 0.5), vmax = Math.max(1, ...me.a.routes.map((r) => r.v));
+      for (const r of me.a.routes) {
+        const o = G.nations[r.o]; if (!o || !o.alive || o.capital < 0) continue;
+        const x1 = sx((o.capital % W) + 0.5), y1 = sy(((o.capital / W) | 0) + 0.5), mx = (x0 + x1) / 2, my = (y0 + y1) / 2 - Math.hypot(x1 - x0, y1 - y0) * 0.12;
+        ctx.strokeStyle = r.border ? css(INK, 0.75) : r.sea ? css([61, 90, 108], 0.85) : css([120, 110, 96], 0.7);
+        ctx.lineWidth = 1.5 + 4 * r.v / vmax; ctx.setLineDash(r.border ? [] : r.sea ? [10, 6] : [2, 6]);
+        ctx.beginPath(); ctx.moveTo(x0, y0); ctx.quadraticCurveTo(mx, my, x1, y1); ctx.stroke(); ctx.setLineDash([]);
+        const lx = 0.25 * x0 + 0.5 * mx + 0.25 * x1, ly = 0.25 * y0 + 0.5 * my + 0.25 * y1;
+        ctx.font = '700 13px "Barlow Condensed", sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.lineWidth = 3; ctx.strokeStyle = css(PAPER, 0.9);
+        const t = '+' + r.v.toFixed(1) + (r.fit > 1.05 ? ' ▲' : r.fit < 0.95 ? ' ▼' : ''); ctx.strokeText(t, lx, ly); ctx.fillStyle = css(INK); ctx.fillText(t, lx, ly);
+      }
+    }
     // labels
     if (labelsAt < 0 || G.tick - labelsAt > 90) refreshLabels();
     ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.lineJoin = 'round';
@@ -436,7 +471,9 @@
         life = e.type === 'ideology' ? 2.4 : 1.8; const p = e.t / life;
         for (let r = 0; r < 3; r++) { const q = p - r * 0.14; if (q <= 0 || q >= 1) continue; ctx.strokeStyle = css(col, 0.9 * (1 - q)); ctx.lineWidth = 4 * (1 - q) + 1; ctx.beginPath(); ctx.arc(X, Y, q * (e.type === 'ideology' ? 60 : 30) * Math.max(1, z * 0.4), 0, 6.3); ctx.stroke(); }
       } else if (e.type === 'nuke') {
-        life = 3.2; if (e.t < dt * 1.5) for (let k = 0; k < 16; k++) { const a = Math.random() * 6.28, d = Math.random() * 7; R.burst((e.i % W) + Math.cos(a) * d, ((e.i / W) | 0) + Math.sin(a) * d, true); } const p = e.t / life, rad = 8 * z;
+        const br = (e.d && e.d.r) || 8, th = e.d && e.d.thermo;
+        life = th ? 5 : 3.2; if (e.t < dt * 1.5) for (let k = 0; k < (th ? 40 : 16); k++) { const a = Math.random() * 6.28, d = Math.random() * br; R.burst((e.i % W) + Math.cos(a) * d, ((e.i / W) | 0) + Math.sin(a) * d, true); } const p = e.t / life, rad = br * z;
+        if (e.d && e.d.ring) { ctx.strokeStyle = css(RED2, 0.7 * (1 - p)); ctx.lineWidth = 2; ctx.setLineDash([8, 6]); ctx.beginPath(); ctx.arc(X, Y, e.d.ring * z, 0, 6.3); ctx.stroke(); ctx.setLineDash([]); }
         if (p < 0.2) { ctx.fillStyle = 'rgba(255,252,240,' + (1 - p / 0.2).toFixed(2) + ')'; ctx.fillRect(0, 0, cw, ch); }
         ctx.fillStyle = css([255, 240, 200], 0.8 * (1 - p)); ctx.beginPath(); ctx.arc(X, Y, rad * (0.4 + p * 0.8), 0, 6.3); ctx.fill();
         ctx.strokeStyle = css(RED, 1 - p); ctx.lineWidth = 5; ctx.beginPath(); ctx.arc(X, Y, rad * (0.6 + p * 3), 0, 6.3); ctx.stroke();
@@ -445,6 +482,7 @@
         const startB = air ? 0.9 : 0;
         if (e.t > startB && e.t < life - 0.3) { const n = Math.random() < dt * (air ? 22 : 18) ? 1 : 0; for (let k = 0; k < n + (Math.random() < dt * 10 ? 1 : 0); k++) { const a = Math.random() * 6.28, d = Math.sqrt(Math.random()) * r; R.burst(x0 + Math.cos(a) * d, y0 + Math.sin(a) * d, Math.random() < 0.35); } }
         ctx.strokeStyle = css(RED, 0.6 * (1 - e.t / life)); ctx.lineWidth = 2; ctx.setLineDash([5, 5]); ctx.beginPath(); ctx.arc(X, Y, r * z, 0, 6.3); ctx.stroke(); ctx.setLineDash([]);
+        if (e.d && e.d.txt && !e.txtShown && e.t > (air ? 1.4 : 0.5)) { e.txtShown = 1; R.floatText(x0, y0 - r - 1, e.d.txt, RED); }
         if (air && e.t < 1.6) {
           const p = e.t / 1.6, dir = -0.5;
           for (let k = 0; k < 3; k++) {

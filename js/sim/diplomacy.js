@@ -598,18 +598,24 @@
     }
   };
 
-  D.onNuke = function (G, A, hit, tile) {
-    A.threat += 50; G.world.tension = Math.min(100, G.world.tension + 25);
-    for (const o of G.nations) if (o && o.alive && o !== A) ID.addOp(G, o.id, A.id, ID.ideo(o).elections ? -50 : -35);
-    A.sm.intelligentsia -= 14; A.sm.clergy -= 12; A.sm.workers -= 6;
+  D.onNuke = function (G, A, hit, tile, kind) {
+    const th = kind === 'thermo';
+    A.threat += th ? 120 : 50; G.world.tension = Math.min(100, G.world.tension + (th ? 45 : 25));
+    for (const o of G.nations) if (o && o.alive && o !== A) ID.addOp(G, o.id, A.id, th ? -60 : ID.ideo(o).elections ? -50 : -35);
+    A.sm.intelligentsia -= th ? 25 : 14; A.sm.clergy -= th ? 20 : 12; A.sm.workers -= th ? 12 : 6;
+    if (th) { A.stab -= 10; ID.addMod(A, 'legit', -8, 120, 'The thermonuclear strike'); G.world.thermoUsed = (G.world.thermoUsed || 0) + 1; }
     if (ID.ideo(A).elections) A.mandate = Math.max(0, A.mandate - 15);
     const names = Object.keys(hit).map((k) => G.nations[+k].name).join(', ');
-    ID.news(G, 'ATOMIC STRIKE: ' + A.name + ' destroys a region of ' + (names || 'empty land') + '.', 'bad', A.id);
-    ID.chron(G, 'nuke', A.name + ' uses an atomic weapon against ' + (names || 'no one') + '.', A.id);
+    ID.news(G, (th ? 'THERMONUCLEAR STRIKE: ' : 'ATOMIC STRIKE: ') + A.name + ' destroys a region of ' + (names || 'empty land') + '.', 'bad', A.id);
+    ID.chron(G, 'nuke', A.name + ' uses ' + (th ? 'a thermonuclear' : 'an atomic') + ' weapon against ' + (names || 'no one') + '.', A.id);
     // the front page is for the first bomb, and for the first of each new war: after that the world has no words left
     const first = !G.world.nuked; G.world.nuked = (G.world.nuked || 0) + 1;
     const fresh = !A.a.nukeHl || G.tick - A.a.nukeHl > 1080;
-    if (first || fresh) {
+    if (th) {
+      A.a.nukeHl = G.tick;
+      ID.headline(G, { kicker: G.world.thermoUsed > 1 ? 'Again' : 'The end of the world, rehearsed', title: 'The sun-weapon', sub: A.name + ' has erased ' + (names || 'a stretch of empty land') + '. Fallout is drifting across the borders.', a: A.id, tone: 'bad' });
+      if (ID.Press) ID.Press.add(G, { w: 6, kind: 'nuke', a: A.id, title: 'A country burned in an afternoon', text: A.name + ' has used a thermonuclear weapon against ' + (names || 'empty land') + '. The fireball was seen from neighbouring capitals. Nothing stands where the cities were; the cloud that followed is now over ' + (names ? 'their neighbours' : 'the sea') + ', and the radio tells everyone downwind to stay indoors for a month. There is no government left in the zone to ask for terms. Every state on earth has broken with ' + A.base + ' or is about to.' });
+    } else if (first || fresh) {
       A.a.nukeHl = G.tick;
       ID.headline(G, first ? { kicker: 'A new kind of war', title: 'Atomic strike', sub: A.name + ' has destroyed a region of ' + (names || 'empty land') + ' with a single weapon.', a: A.id, tone: 'bad' } : { kicker: 'The bomb again', title: A.base + ' strikes', sub: 'A second atomic war. ' + (names || 'Empty land') + ' burns.', a: A.id, tone: 'bad' });
       if (ID.Press) ID.Press.add(G, { w: first ? 5 : 3, kind: 'nuke', a: A.id, title: first ? 'A city gone in a single flash' : A.base + ' uses the bomb again', text: A.name + ' has used an atomic weapon against ' + (names || 'empty land') + '. ' + (first ? 'No weapon like it has been used before. Observers who reached the edge of the zone report nothing standing for miles and a sickness among the survivors that the doctors cannot name. Every chancellery in the world met in emergency session within the day.' : 'It is no longer the first time, and the dispatches are shorter. The dead are not fewer.') });

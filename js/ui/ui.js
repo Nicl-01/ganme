@@ -138,7 +138,9 @@
     const r = ID.Combat.launchBoat(G, n, UI.sel, n.troops * Math.min(UI.commit, cap), UI.style);
     if (typeof r === 'string') { UI.toast(r); ID.Audio.play('bad'); } else UI.toast((G.owner[UI.sel] ? 'Transports are at sea with ' : 'Settlers sail with ') + ID.fmtPop(r.troops) + ' troops.', true);
   };
-  acts.missile = (a) => { const G = UI.G; if (UI.sel < 0) return; UI.tryDo(ID.Combat.launchMissile(G, P(), UI.sel, !!a), a ? 'Atomic strike launched.' : 'Missile launched.'); };
+  acts.missile = (a) => { const G = UI.G; if (UI.sel < 0) return; const k = ['', 'atom', 'thermo'][a] || ''; UI.tryDo(ID.Combat.launchMissile(G, P(), UI.sel, k), k === 'thermo' ? 'Thermonuclear strike launched.' : k ? 'Atomic strike launched.' : 'Missile launched.'); };
+  acts.rebuild = (a) => { const G = UI.G, n = P(); if (UI.tryDo(ID.startRebuild(G, n, a))) { ID.Audio.play('build'); UI.toast('Rebuilding the ' + ID.BUILDINGS[G.bld[a]].name.toLowerCase() + ': ready in ' + Math.round(ID.buildDays(G, n, G.bld[a]) * 0.5 / 30) + ' months.', true); UI.renderSel(); } };
+  acts.rebuildAll = () => { const G = UI.G, n = P(); let k = 0; for (const i of G.blist.slice()) if (G.owner[i] === n.id && G.bld[i] && !G.hp[i] && !ID.canRebuild(G, n, i)) { ID.startRebuild(G, n, i); k++; } UI.toast(k ? 'Rebuilding ' + k + ' wrecked building' + (k > 1 ? 's' : '') + '.' : 'Nothing could be rebuilt (gold, or already under way).', !!k); };
   acts.propose = (a) => { const G = UI.G; UI.tryDo(ID.Diplomacy.propose(G, P(), G.nations[a[0]], a[1]), { trade: 'Trade treaty signed.', nap: 'Non-aggression pact signed.', ally: 'Alliance concluded.', peace: 'Peace is signed.', embargo: 'Embargo declared.', cancel_trade: 'Trade treaty cancelled.', cancel_nap: 'Pact denounced.' }[a[1]]); };
   acts.leaveBloc = () => { ID.Diplomacy.leaveBloc(UI.G, P(), true); };
   acts.op = (a) => { const G = UI.G; UI.tryDo(ID.Diplomacy.startOp(G, P(), a[1], G.nations[a[0]]), a[1] === 'fund' ? 'Money is flowing to the movement.' : a[1] === 'coup' ? 'Your contacts have their instructions.' : 'The call has gone out.'); };
@@ -223,10 +225,10 @@
     const set = (id, html) => { const el = document.getElementById(id); if (el && el.innerHTML !== html) el.innerHTML = html; };
     const net = n.net;
     set('sv-gold', ID.fmt(n.gold) + '<small class="' + (net >= 0 ? 'good' : 'bad') + '">' + (net >= 0 ? '+' : '−') + Math.abs(net).toFixed(net > -10 && net < 10 ? 1 : 0) + '</small>');
-    set('sv-ind', ID.fmt(n.ind) + '<small>' + n.nb[B.FACTORY] + ' works</small>');
+    set('sv-ind', ID.fmt(n.ind) + '<small' + (n.a.wrecks ? ' class="bad">' + n.a.wrecks + ' wrecked' : '>' + n.nb[B.FACTORY] + ' works') + '</small>');
     set('sv-food', '<span class="' + (n.foodBal < 0.93 ? 'bad' : n.foodBal < 1 ? 'warn' : '') + '">' + Math.round(n.foodBal * 100) + '%</span>');
     set('sv-pop', ID.fmtPop(n.pop));
-    set('sv-troops', ID.fmtPop(n.troops) + '<small>' + Math.round((n.troops / Math.max(1, n.pop)) * 100) + '%</small>');
+    set('sv-troops', ID.fmtPop(n.troops) + '<small class="' + (n.equip < 0.85 ? 'bad' : n.equip < 1 ? 'warn' : 'good') + '">kit ' + Math.round(n.equip * 100) + '%</small>');
     const cls = (v) => (v < 30 ? 'bad' : v < 45 ? 'warn' : '');
     const arrow = (cur, tgt) => (tgt > cur + 1.5 ? '<small class="good">▲</small>' : tgt < cur - 1.5 ? '<small class="bad">▼</small>' : '');
     set('sv-stab', '<span class="' + cls(n.stab) + '">' + Math.round(clamp(n.stab, 0, 100)) + '</span>' + arrow(n.stab, n.a.stabTgt != null ? n.a.stabTgt : n.stab));
@@ -239,13 +241,22 @@
     for (let s = 1; s <= 5; s++) { const el = document.getElementById('b-spd' + s); if (el) el.classList.toggle('on', G.speed === s && !G.paused); }
     if (force || !UI._tipsAt || G.tick - UI._tipsAt > 30) { UI._tipsAt = G.tick; UI.topTips(); }
   };
+  /* The army's kit in one paragraph: where it comes from and what it does. */
+  UI.kitText = function (n) {
+    const need = n.a.armsNeed || 1, made = n.a.armsMade || 0, imp = n.a.armsImp || 0, cap = n.a.armsCap || 0, paid = n.a.armsPaid || 0;
+    const lim = paid > cap * 1.02 ? 'factories' : 'budget';
+    return '<b>Kit ' + Math.round(n.equip * 100) + '%</b> multiplies attack by ×' + n.equip.toFixed(2) + ' and defence by ×' + Math.pow(n.equip, 0.7).toFixed(2) + '. 100% is the world’s average kit per soldier.' +
+      '<div class="kv"><span>Your soldiers need</span><b>' + need.toFixed(1) + '/mo</b><span>Your factories make</span><b class="' + (made < need ? 'bad' : 'good') + '">' + made.toFixed(1) + '/mo</b>' + (imp > 0.05 ? '<span>Bought abroad</span><b>' + imp.toFixed(1) + '/mo</b>' : '') + '<span>Limited by</span><b>' + (lim === 'factories' ? '<span class="warn">factories (' + cap.toFixed(1) + ')</span>' : 'arms budget (' + paid.toFixed(1) + ')') + '</b></div>' +
+      '<span class="dim">Kit heads for 62% + 38% × (made + bought) ÷ need, at most 135%, a tenth of the way each month. ' + (lim === 'factories' ? 'More arms money is wasted: build factories, or buy from friendly partners with spare capacity (up to a quarter of need, at 1.5× the price).' : 'Raise the arms share of the budget, or keep fewer men under arms.') + '</span>';
+  };
   UI.topTips = function () {
     const G = UI.G, n = P(), I = ID.ideo(n); const st = (id, html) => { const el = document.getElementById('st-' + id); if (el) el.setAttribute('data-tip', html); };
     st('gold', '<h5>Treasury</h5>Gold in hand and the monthly balance.' + '<hr><div class="kv"><span>Revenue</span><b>' + n.rev.toFixed(1) + '</b><span>Spending</span><b>' + n.exp.toFixed(1) + '</b><span>of which upkeep</span><b>' + (n.a.upkeep || 0).toFixed(1) + '</b>' + (n.debt > 1 ? '<span>Debt</span><b class="bad">' + Math.round(n.debt) + ' / ' + Math.round(ID.Economy.debtCap(n)) + '</b>' : '') + '</div><hr><span class="dim">' + esc(ID.ECON[I.econ.model].name) + ': ' + esc(ID.ECON[I.econ.model].levers) + '</span>');
-    st('ind', '<h5>Industry</h5>Monthly industrial output from ' + n.nb[B.FACTORY] + ' factories and ' + n.nb[B.CITY] + ' cities. Every factory also adds to the workers’ political power.<hr><div class="kv"><span>Efficiency</span><b>' + Math.round(n.eff * 100) + '%</b><span>Total output</span><b>' + Math.round(n.gdp) + '</b><span>World rank</span><b>#' + ID.rankOf(G, n, 'ind') + '</b></div>');
+    st('ind', '<h5>Industry</h5>Monthly industrial output from ' + n.nb[B.FACTORY] + ' factories and ' + n.nb[B.CITY] + ' cities. Every factory also adds to the workers’ political power.<hr><div class="kv"><span>Industrial capacity</span><b>' + Math.round(n.a.ic || 0) + '</b><span>Arms it can make</span><b>' + (n.a.armsCap || 0).toFixed(1) + '/mo</b><span>Efficiency</span><b>' + Math.round(n.eff * 100) + '%</b><span>Total output</span><b>' + Math.round(n.gdp) + '</b><span>World rank</span><b>#' + ID.rankOf(G, n, 'ind') + '</b></div>' +
+      '<span class="dim">Capacity = factories by condition × 12 × (1 + 0.1 × industrial technology) × ore.</span>' + (n.a.wrecks || n.a.damaged ? '<hr><span class="bad">' + (n.a.wrecks ? n.a.wrecks + ' wrecked' : '') + (n.a.wrecks && n.a.damaged ? ', ' : '') + (n.a.damaged ? n.a.damaged + ' damaged' : '') + '</span> buildings: damaged ones mend by themselves (paid from the treasury); wrecked ones need rebuilding (select them, or use the alert).' : ''));
     st('food', '<h5>Food</h5>Harvest as a share of what the population needs. Below 93% is famine: people die, peasants and workers turn.<hr><span class="dim">Raised by farmland, agricultural research and land law; lowered by mass mobilisation and squeezing the villages.</span>');
     st('pop', '<h5>Population</h5>' + ID.fmtPop(n.pop) + ' of a capacity of ' + ID.fmtPop(ID.popCap(n)) + '. Growth slows as you approach capacity; cities raise it.<hr>Living standards: <b>' + Math.round(n.ls) + '</b>');
-    st('troops', '<h5>Troops</h5>Your uncommitted pool. It refills toward ' + Math.round(n.mob * 100) + '% of the population (set on the War panel). Soldiers are not workers.<hr><div class="kv"><span>Attack</span><b>×' + (n.a.atk || 1).toFixed(2) + '</b><span>Defence</span><b>×' + (n.a.def || 1).toFixed(2) + '</b><span>War weariness</span><b>' + Math.round(n.we) + '</b></div>');
+    st('troops', '<h5>Troops</h5>Your uncommitted pool. It refills toward ' + Math.round(n.mob * 100) + '% of the population (set on the War panel). Soldiers are not workers.<hr><div class="kv"><span>Attack</span><b>×' + (n.a.atk || 1).toFixed(2) + '</b><span>Defence</span><b>×' + (n.a.def || 1).toFixed(2) + '</b><span>War weariness</span><b>' + Math.round(n.we) + '</b></div><hr>' + UI.kitText(n));
     st('stab', '<h5>Stability</h5>Heading for <b>' + Math.round(n.a.stabTgt != null ? n.a.stabTgt : n.stab) + '</b>.<br>Built from legitimacy and the support of each faction weighted by its power; cut by unrest and war weariness.<hr><span class="dim">Below 38, movements can rise. At zero for most of a year, the state dissolves.</span>');
     st('legit', '<h5>Legitimacy</h5>' + Object.keys(I.legit).map((k) => '<div class="kv"><span>' + ID.LEGIT[k].name + ' <span class="dim">' + Math.round(I.legit[k] * 100) + '%</span></span><b>' + Math.round(n.src[k]) + '</b></div>').join('') + '<hr><span class="dim">Each ideology draws on different sources. Open the State panel for what moves them.</span>');
     st('auth', '<h5>Authority</h5>Spent on laws and decisions. ' + esc(ID.CONTROL[I.control.type].desc));
@@ -308,6 +319,36 @@
     if (t.bloc) h += '<span class="warn">Their bloc, the ' + esc(G.blocs[t.bloc].name) + ', may join them.</span>';
     return h;
   };
+  /* ---------------------------------------------------------------- buildings in numbers */
+  const pctC = (v) => Math.round(v * 100) + '%';
+  UI.fortTip = function (G, i) {
+    const f = ID.fortFx(G, i), row = (k, name) => { const x = ID.fortFx(G, i, k); return '<span>' + name + '</span><b>speed ×' + (1 / x.cost).toFixed(2) + ' · losses ×' + x.loss.toFixed(2) + '</b>'; };
+    return '<h5>Fortress cover, condition ' + pctC(f.c) + '</h5>An attack on this tile advances at <b>×' + (1 / f.cost).toFixed(2) + '</b> speed and the attacker loses <b>×' + f.loss.toFixed(2) + '</b> the men. Shelling and bombing here kill <b>×' + f.shelter.toFixed(2) + '</b> as many defenders.' +
+      '<div class="kv">' + row('advance', 'Advance') + row('infiltrate', 'Infiltration (ignores half)') + row('siege', 'Siege (ignores 85%)') + '</div><hr><span class="dim">Full condition: speed ×' + (1 / (1 + ID.FORT.cost)).toFixed(2) + ', losses ×' + (1 + ID.FORT.loss) + '. Every point of damage weakens it; artillery takes 50 a barrage, bombers 15. Wrecked forts cover nothing.</span>';
+  };
+  /* What the building on tile i does now, its condition, and the repair or rebuild lever (own = the player's). */
+  UI.bldCard = function (G, n, i, own) {
+    const t = G.bld[i], b = ID.BUILDINGS[t], c = G.hp[i] / 100, me = P();
+    let what = '';
+    if (!c) what = '<span class="bad">Wrecked: it does nothing until rebuilt.</span>';
+    else if (t === B.CITY) what = 'Room for <b>' + ID.fmtPop(400 * c) + '</b> people and <b>' + (6 * c).toFixed(1) + '</b> output a month.';
+    else if (t === B.FACTORY) what = '<b>' + (12 * (1 + 0.1 * n.tech.ind) * (n.a.oreF || 1) * c).toFixed(1) + '</b> industrial capacity (12 × technology ' + (1 + 0.1 * n.tech.ind).toFixed(1) + ' × ore ' + (n.a.oreF || 1).toFixed(2) + ' × condition).';
+    else if (t === B.PORT) what = 'Carries <b>' + (ID.Economy.PORT_ROUTES * c).toFixed(1) + '</b> sea routes. ' + esc(n.base) + ' uses ' + (n.a.seaRoutes || 0) + ' of ' + (ID.Economy.PORT_ROUTES * ID.nbe(n, B.PORT)).toFixed(1) + '.';
+    else if (t === B.FORT) { const f = { cost: 1 + ID.FORT.cost * c, loss: 1 + ID.FORT.loss * c, shelter: 1 - ID.FORT.shelter * c }; what = 'Within ' + ID.FORT_RADIUS + ' tiles: attackers advance at <b>×' + (1 / f.cost).toFixed(2) + '</b> and lose <b>×' + f.loss.toFixed(2) + '</b> the men; shelling kills <b>×' + f.shelter.toFixed(2) + '</b>.'; }
+    else if (t === B.SILO) what = 'A launch site for missiles' + ((n.atom && n.atom.lv) ? ' and the bomb' : '') + '.';
+    const cond = '<span class="' + (c === 0 ? 'bad' : c < 0.6 ? 'warn' : c < 1 ? 'warn' : 'good') + '">' + pctC(c) + '</span>';
+    let h = '<div class="note' + (c === 0 ? ' red' : '') + '"' + tip('<h5>' + b.name + '</h5>' + esc(b.desc)) + '><b>' + b.name + '</b> · condition ' + cond + '<br>' + what;
+    if (own && c > 0 && c < 1) { const r = ID.repairRate(G, n), rc = ID.repairCost(t, r); h += '<br><span class="' + (n.gold < rc ? 'bad' : 'dim') + '">' + (n.gold < rc ? 'Repairs stalled: they need ' + rc.toFixed(1) + ' gold a month.' : 'Repairing ' + r.toFixed(1) + ' points a month for ' + rc.toFixed(1) + ' gold' + (n.nwars ? ' (slower at war)' : '') + '.') + '</span>'; }
+    h += '</div>';
+    if (own && c === 0) { const q = G.builds.find((x) => x.i === i); h += q ? '<div class="note">Rebuilding: ready ' + ID.dateOf(q.done).short + '.</div>' : UI.btn('Rebuild <span>' + ID.rebuildCost(G, me, i) + ' gold · ' + Math.round(ID.buildDays(G, me, t) * 0.5 / 30) + ' months</span>', 'rebuild', i, { cls: 'red', off: ID.canRebuild(G, me, i), tip: '<h5>Rebuild</h5>Half the price and half the time of a new ' + b.name.toLowerCase() + '.' }); }
+    return h;
+  };
+  UI.bombTip = function (G, n, kind) {
+    const Bk = ID.Combat.BOMB[kind];
+    return '<h5>' + Bk.name + '</h5>Everything within <b>' + Bk.r + '</b> tiles is destroyed and poisoned for <b>' + Math.round(Bk.rad / 12) + '</b> years. Buildings out to <b>' + Bk.ring + '</b> tiles lose ' + Bk.ringDmg + ' condition' + (Bk.ringRad ? ', and fallout poisons that ring for ' + Math.round(Bk.ringRad / 12) + ' years' : '') + '. Deaths: <b>' + Bk.kill + '×</b> the share of the country’s people living in the blast, at most <b>' + pctC(Bk.maxDead) + '</b> of the country; soldiers: ' + Bk.troop + '× its share of the land, at most 70%. The state loses ' + Bk.stab + ' stability and gains ' + Bk.we + ' war weariness.' +
+      '<hr><span class="bad">' + (kind === 'thermo' ? 'Every state on earth turns on you (opinion −60), threat +120, world tension +45, your own people recoil (stability −10, legitimacy −8 for ten years).' : 'Every state’s opinion of you collapses (−35 to −50), threat +50, your clergy and intelligentsia recoil, and anyone with the bomb may answer in kind.') + '</span>';
+  };
+
   UI.renderSel = function () {
     const G = UI.G, el = $('#sel'); if (!G) return;
     if (UI.sel < 0) { el.hidden = true; return; }
@@ -315,7 +356,7 @@
     const Pr = G.provinces[G.prov[i]]; const terr = ID.TERRAIN[G.terrain[i]];
     let h = '<div class="hd">' + (n ? ID.Flags.html(n, 'sflag') : '') + '<b>' + (n ? esc(n.name) : 'The hinterland') + '</b><button class="x" data-act="unsel"' + tip('Clear selection (Esc)') + '>✕</button></div><div class="bd">';
     const rows = [['Terrain', terr.name + (G.river[i] ? ', river' : ''), '<b>' + terr.name + '</b><br>' + esc(terr.desc || '') + (G.river[i] ? '<br>Rivers slow a front and cost the attacker more.' : '')]];
-    if (G.fortCov[i] === o && o) rows.push(['Fortress cover', '<span class="warn">yes</span>', 'Attackers pay 2.5× for this tile.']);
+    if (G.fortCov[i] === o && o) { const f = ID.fortFx(G, i); rows.push(['Fortress cover', '<span class="warn">speed ×' + (1 / f.cost).toFixed(2) + ', losses ×' + f.loss.toFixed(2) + '</span>', UI.fortTip(G, i)]); }
     if (G.rad[i]) rows.push(['Irradiated', '<span class="bad">' + Math.ceil(G.rad[i] / 12) + ' yrs</span>']);
     if (n && o === G.player) {
       rows.push(['Province unrest', '<span class="' + (Pr.unrest > 50 ? 'bad' : Pr.unrest > 30 ? 'warn' : '') + '">' + Math.round(Pr.unrest) + '</span>', 'Unrest in this province. Over 72 in unintegrated land, it may break away.']);
@@ -325,7 +366,7 @@
       else if (G.cut[i] === 2) rows.push(['Supply', '<span class="warn">by sea</span>', '<h5>Supplied by sea</h5>This land is not joined to your capital by land. It is supplied through ' + (ID.Combat.isBeach(G, i) ? 'this beachhead' : 'a port or a beachhead on its coast') + ' and fights normally.<hr>If the enemy takes every port and beachhead in it, it is cut off.']);
       h += UI.kv(rows);
       const bl = G.bld[i];
-      if (bl) h += '<div class="note">' + ID.BUILDINGS[bl].name + ': ' + esc(ID.BUILDINGS[bl].desc) + '</div>';
+      if (bl) h += UI.bldCard(G, n, i, true);
       else {
         h += '<div class="build">' + [1, 2, 3, 4, 5].map((t) => { const b = ID.BUILDINGS[t]; const why = ID.canBuild(G, me, i, t); return UI.btn(b.name.split(' ')[0] + '<small>' + ID.buildCost(G, me, t) + '</small>', 'build', t, { cls: 'sm', off: why, tip: '<h5>' + b.name + '</h5>' + esc(b.desc) + '<hr>Cost <b>' + ID.buildCost(G, me, t) + '</b> gold · ' + Math.round(ID.buildDays(G, me, t) / 30) + ' months · upkeep ' + b.upkeep + '/mo' }); }).join('') + '</div>';
       }
@@ -335,15 +376,18 @@
       const op = ID.op(G, n.id, me.id);
       rows.push(['Their opinion of you', '<span class="' + (op > 15 ? 'good' : op < -15 ? 'bad' : '') + '">' + Math.round(op) + '</span>', 'Driven by ideological distance, treaties, your threat and what you have done to them.']);
       rows.push(['Troops', ID.fmtPop(n.troops)]); rows.push(['Stability', Math.round(clamp(n.stab, 0, 100)) + '']);
-      h += UI.kv(rows) + '<div class="acts">';
+      h += UI.kv(rows);
+      if (G.bld[i]) h += UI.bldCard(G, n, i, false);
+      h += '<div class="acts">';
       if (ID.atWar(G, me.id, n.id)) {
         const cap = me.emergency ? 1 : ID.ideo(me).control.cap; const tr = me.troops * Math.min(UI.commit, cap);
         if (ID.borders(G, me.id, n.id) || G.attacks.some((a) => a.from === me.id && a.to === n.id)) h += UI.btn('Attack <span>' + ID.fmtPop(tr) + ' troops</span>', 'attack', null, { cls: 'red', tip: '<h5>Attack</h5>Commit ' + Math.round(Math.min(UI.commit, cap) * 100) + '% of your pool (' + ID.fmtPop(tr) + ') against ' + esc(n.name) + ' in the style chosen on the bar below. <span class="dim">(Enter)</span>' });
         if (G.coast[i]) { const pl = ID.Combat.planBoat(G, me, i); h += UI.btn('Naval landing here <span>' + ID.fmtPop(tr) + '</span>', 'landing', null, { off: typeof pl === 'string' ? pl : '', tip: UI.landTip(G, me, n, tr, pl) }); }
         if (me.nb[B.SILO]) {
-          const cm = ID.Combat.canMissile(G, me, i, false), cn = ID.Combat.canMissile(G, me, i, true);
+          const C = ID.Combat, cm = C.canMissile(G, me, i, ''), lv = (me.atom && me.atom.lv) || 0;
           h += UI.btn('Missile strike here', 'missile', 0, { off: typeof cm === 'string' ? cm : '', tip: 'Destroys about half the buildings within 3 tiles.' });
-          if (me.tech.mil >= 6) h += UI.btn('Atomic strike here', 'missile', 1, { cls: 'red', off: typeof cn === 'string' ? cn : '', tip: '<h5>Atomic strike</h5>Destroys everything within 8 tiles and poisons the land for ten years.<hr><span class="bad">Every state’s opinion of you collapses, threat +50, your own clergy and intelligentsia recoil, and anyone who has the bomb may answer in kind.</span>' });
+          if (lv >= 1) { const cn = C.canMissile(G, me, i, 'atom'); h += UI.btn('Atomic strike here <span>' + me.nukes + ' ready</span>', 'missile', 1, { cls: 'red', off: typeof cn === 'string' ? cn : '', tip: UI.bombTip(G, me, 'atom') }); }
+          if (lv >= 2) { const ct = C.canMissile(G, me, i, 'thermo'); h += UI.btn('Thermonuclear strike here <span>' + (me.thermo || 0) + ' ready</span>', 'missile', 2, { cls: 'red', off: typeof ct === 'string' ? ct : '', tip: UI.bombTip(G, me, 'thermo') }); }
         }
         const isObj = me.objs && me.objs[n.id] === i;
         h += UI.btn(isObj ? 'Objective set' : 'Make this the objective', 'setObj', i, { cls: isObj ? 'ghost' : 'red', off: isObj ? 'Already the objective against ' + esc(n.name) + '.' : '', tip: '<h5>Objective</h5>Your offensive against ' + esc(n.name) + ' bends toward this point: a spearhead instead of a broad front, 10% faster, with 6% heavier losses on its exposed flanks. When it falls the enemy reels, loses troops and stability, and your attack surges forward for three weeks.' });
@@ -403,7 +447,9 @@
       let inc = 0; for (const a of G.attacks) if (a.to === n.id) inc += a.troops;
       if (inc > 1) add('<b>Under attack</b> by ' + ID.fmtPop(inc) + ' troops', 'mil', true);
       if (!G.attacks.some((a) => a.from === n.id) && n.troops > n.pop * n.mob * 0.6) add('<b>Troops idle</b> while at war', 'mil');
+      if (n.equip < 0.85) add('<b>Short of kit</b>: equipment ' + Math.round(n.equip * 100) + '%, attack ×' + n.equip.toFixed(2) + ((n.a.armsPaid || 0) > (n.a.armsCap || 0) * 1.02 ? ' (factories are the limit)' : ''), 'mil', n.equip < 0.75);
     }
+    if (n.a.wrecks) { const w = G.blist.find((i) => G.owner[i] === n.id && G.bld[i] && !G.hp[i] && !G.builds.some((q) => q.i === i)); if (w != null) add('<b>' + n.a.wrecks + ' wrecked building' + (n.a.wrecks > 1 ? 's' : '') + '</b>: rebuild at half price', null, false, 'goto', w); }
     if (G.wildB && G.wildB[n.id] > 0 && !G.attacks.some((a) => a.from === n.id && a.to === 0) && n.troops > n.pop * n.mob * 0.5) add('<b>Unclaimed land</b> on your frontier: expand', 'mil', false, 'expandHint', 0);
     let cut = 0; for (let p = 1; p < G.provinces.length; p++) { const Pr = G.provinces[p]; if (Pr.owner === n.id && G.cut[Pr.center] === 1 && G.owner[Pr.center] === n.id) cut++; }
     if (G.press && G.press.fresh && (UI.settings.papers === 'off' || UI.settings.papers === 'big')) add('<b>The World Dispatch</b>: a new issue', null, false, 'paper', G.press.fresh);

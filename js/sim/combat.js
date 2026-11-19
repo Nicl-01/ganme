@@ -256,7 +256,7 @@
       let lossMul = S.lossA;
       if (S.open && tr.rough) { cost *= 3.2; lossMul *= 1.4; }
       if (G.river[i]) { cost *= 1.5; tdef *= 1.3; }
-      if (fort) { cost *= 1 + 0.8 * (1 - igF); tdef *= 1 + 1.5 * (1 - igF); }
+      if (fort) { const fc = (G.fortQ[i] / 100) * (1 - igF); cost *= 1 + ID.FORT.cost * fc; tdef *= 1 + ID.FORT.loss * fc; }
       if (G.bld[i] === B.CITY) { tdef *= 2 * cityK; cost *= 1.5; }
       if (G.shock && G.shock.length && shocked(G, x, y, a.from, a.to)) { tdef *= 0.6; cost *= 0.75; }
       let dmul = def * holdFast, amul = atk * holy;
@@ -314,7 +314,7 @@
   C.navalRange = (G, n) => ID.ERAS[ID.eraOf(G.tick)].range * (ID.ideo(n).flags.navalPower ? 1.4 : 1);
   /* Sea power: ports, a seafaring system, technology and naval programmes. It decides how much of a
      convoy arrives and how hard the beach is: a strong navy guards its own coast and lands cheaply on others'. */
-  C.seaPower = (n) => (n.nb[B.PORT] || 0) * (ID.ideo(n).flags.navalPower ? 1.8 : 1) * (ID.ideo(n).doctrine.naval || 1) * (1 + 0.08 * n.tech.mil) * Math.max(0.3, 1 + ID.mod(n, 'navy'));
+  C.seaPower = (n) => (ID.nbe(n, B.PORT) || 0) * (ID.ideo(n).flags.navalPower ? 1.8 : 1) * (ID.ideo(n).doctrine.naval || 1) * (1 + 0.08 * n.tech.mil) * Math.max(0.3, 1 + ID.mod(n, 'navy'));
   C.crossing = function (A, D) {
     const r = D ? C.seaPower(D) / Math.max(0.5, C.seaPower(A)) : 0;
     return { ratio: r, sunk: clamp(0.11 * r, 0, 0.5), costK: Math.sqrt(clamp(r, 0.45, 2.2)) };
@@ -342,7 +342,7 @@
     const dist = ID.seaDistance(G, tsea, range);
     let best = -1, bd = 1e9, bport = -1;
     for (const i of G.blist) {
-      if (G.bld[i] !== B.PORT || G.owner[i] !== n.id || G.cut[i] === 1) continue;
+      if (G.bld[i] !== B.PORT || !G.hp[i] || G.owner[i] !== n.id || G.cut[i] === 1) continue;
       for (const s of ID.seaNeighbors(G, i)) if (dist[s] >= 0 && dist[s] < bd) { bd = dist[s]; best = s; bport = i; }
     }
     if (best < 0) return 'No sea route within range (' + Math.round(range) + ' tiles from one of your ports).';
@@ -359,7 +359,7 @@
   C.bestLanding = function (G, n, e, jitter) {
     if (!n.nb[B.PORT]) return -1;
     const starts = [];
-    for (const i of G.blist) if (G.bld[i] === B.PORT && G.owner[i] === n.id && G.cut[i] !== 1) for (const s of ID.seaNeighbors(G, i)) starts.push(s);
+    for (const i of G.blist) if (G.bld[i] === B.PORT && G.hp[i] && G.owner[i] === n.id && G.cut[i] !== 1) for (const s of ID.seaNeighbors(G, i)) starts.push(s);
     if (!starts.length) return -1;
     const dist = ID.seaDistance(G, starts, C.navalRange(G, n));
     const W = G.W, H = G.H, own = G.owner, terr = G.terrain, cx = e.capital % W, cy = (e.capital / W) | 0;
@@ -429,7 +429,7 @@
     }
     const dd = D.troops / Math.max(D.tiles, 40);
     const naval = ID.ideo(A).doctrine.naval || 1;
-    const fort = G.fortCov[bt.target] === to ? 2.5 : 1;
+    const fort = G.fortCov[bt.target] === to ? 1 + ID.FORT.loss * G.fortQ[bt.target] / 100 : 1;
     const cost = (dd * 2.2 * fort * TERR[G.terrain[bt.target]].def * D.a.def / A.a.atk + 0.4) * cr.costK;
     if (bt.troops <= cost * 1.1) {
       const lost = bt.troops * 0.6; A.troops += bt.troops - lost;
@@ -455,49 +455,83 @@
 
   /* ---------------------------------------------------------------- strategic weapons */
   C.missileRange = (G) => [0, 110, 200, 320][ID.eraOf(G.tick)];
+  /* The two bombs. r: everything inside is destroyed and irradiated for rad months. ring: buildings there lose ringDmg
+     condition (and fallout irradiates it for ringRad months). kill: deaths = kill × (the state's people living in the
+     blast ÷ its capacity), at most maxDead of the state: the blast, the fire and the sickness after. troop: soldiers
+     lost per share of the state's land in the blast. */
+  C.BOMB = {
+    atom: { name: 'Atomic bomb', r: 12, ring: 18, ringDmg: 50, rad: 240, ringRad: 0, kill: 2.8, maxDead: 0.6, troop: 2.5, stab: 20, we: 25 },
+    thermo: { name: 'Thermonuclear bomb', r: 22, ring: 34, ringDmg: 70, rad: 250, ringRad: 120, kill: 3.2, maxDead: 0.9, troop: 3, stab: 35, we: 40 },
+  };
+  const bombKind = (m) => m.kind || (m.nuke ? 'atom' : ''); // saves from before the thermonuclear bomb
+  C.stock = (n, kind) => (kind === 'thermo' ? n.thermo || 0 : kind ? n.nukes : n.missiles);
   C.canMissile = function (G, n, target, nuke) {
+    const kind = nuke === true || nuke === 1 ? 'atom' : nuke || '';
     if (!n.nb[B.SILO]) return 'You have no missile silo.';
-    if (nuke ? n.nukes < 1 : n.missiles < 1) return nuke ? 'No atomic warhead ready.' : 'No missile ready.';
+    if (C.stock(n, kind) < 1) return kind === 'thermo' ? 'No thermonuclear device ready.' : kind ? 'No atomic warhead ready.' : 'No missile ready.';
     const W = G.W, tx = target % W, ty = (target / W) | 0; let best = 1e9, from = -1;
-    for (const i of G.blist) if (G.bld[i] === B.SILO && G.owner[i] === n.id) { const d = Math.hypot((i % W) - tx, ((i / W) | 0) - ty); if (d < best) { best = d; from = i; } }
+    for (const i of G.blist) if (G.bld[i] === B.SILO && G.hp[i] && G.owner[i] === n.id) { const d = Math.hypot((i % W) - tx, ((i / W) | 0) - ty); if (d < best) { best = d; from = i; } }
+    if (from < 0) return 'Every silo you have is wrecked.';
     if (best > C.missileRange(G)) return 'Out of range (' + C.missileRange(G) + ').';
-    return { from, dist: best };
+    return { from, dist: best, kind };
   };
   C.launchMissile = function (G, n, target, nuke) {
     const r = C.canMissile(G, n, target, nuke); if (typeof r === 'string') return r;
-    if (nuke) n.nukes--; else n.missiles--;
-    G.missiles.push({ owner: n.id, from: r.from, to: target, t: 0, dur: Math.max(6, Math.round(r.dist / 5)), nuke: !!nuke });
+    if (r.kind === 'thermo') n.thermo--; else if (r.kind) n.nukes--; else n.missiles--;
+    G.missiles.push({ owner: n.id, from: r.from, to: target, t: 0, dur: Math.max(6, Math.round(r.dist / 5)), nuke: !!r.kind, kind: r.kind });
     ID.sfx(G, 'launch');
     return '';
   };
   function impact(G, m) {
-    const W = G.W, H = G.H, x0 = m.to % W, y0 = (m.to / W) | 0, R = m.nuke ? 8 : 3;
-    const A = G.nations[m.owner];
+    const kind = bombKind(m);
+    if (kind) return bombImpact(G, m, kind);
+    const W = G.W, H = G.H, x0 = m.to % W, y0 = (m.to / W) | 0, R = 3;
     const hit = {};
     for (let dy = -R; dy <= R; dy++) for (let dx = -R; dx <= R; dx++) {
       if (dx * dx + dy * dy > R * R) continue;
       const x = x0 + dx, y = y0 + dy; if (x < 0 || y < 0 || x >= W || y >= H) continue;
       const i = y * W + x; if (G.terrain[i] === T.SEA) continue;
       const o = G.owner[i]; if (o) hit[o] = (hit[o] || 0) + 1;
-      if (G.bld[i] && (m.nuke || G.rng.chance(0.55))) ID.removeBuilding(G, i);
-      if (m.nuke && !G.rad[i]) {
-        const tr = TERR[G.terrain[i]];
-        if (o) { const v = G.nations[o]; v.popLand -= tr.pop; v.foodLand -= tr.food * (G.river[i] ? 1.25 : 1); }
-        G.rad[i] = 120; G.radList.push(i);
+      if (G.bld[i] && G.rng.chance(0.55)) ID.removeBuilding(G, i);
+    }
+    for (const k in hit) { const v = G.nations[+k]; v.troops *= 0.985; v.stab -= 1.5; }
+    ID.fx(G, 'boom', m.to);
+    ID.sfx(G, 'boom');
+  }
+  function bombImpact(G, m, kind) {
+    const Bk = C.BOMB[kind], W = G.W, H = G.H, x0 = m.to % W, y0 = (m.to / W) | 0, R = Bk.ring, r2 = Bk.r * Bk.r;
+    const A = G.nations[m.owner];
+    const hit = {}, people = {}, cap = {}, lost = { bld: 0, dmg: 0 };
+    for (let dy = -R; dy <= R; dy++) for (let dx = -R; dx <= R; dx++) {
+      const d2 = dx * dx + dy * dy; if (d2 > R * R) continue;
+      const x = x0 + dx, y = y0 + dy; if (x < 0 || y < 0 || x >= W || y >= H) continue;
+      const i = y * W + x; if (G.terrain[i] === T.SEA) continue;
+      const o = G.owner[i], v = o ? G.nations[o] : null, core = d2 <= r2, tr = TERR[G.terrain[i]];
+      if (v && cap[o] == null) cap[o] = Math.max(1, ID.popCap(v));
+      if (core) {
+        if (v) { hit[o] = (hit[o] || 0) + 1; people[o] = (people[o] || 0) + (G.rad[i] ? 0 : tr.pop) + (G.bld[i] === B.CITY ? 400 * G.hp[i] / 100 : 0); }
+        if (G.bld[i]) { ID.removeBuilding(G, i); lost.bld++; }
+      } else if (G.bld[i]) { lost.dmg += ID.damage(G, i, Bk.ringDmg) > 0 ? 1 : 0; }
+      const rad = core ? Bk.rad : Bk.ringRad;
+      if (rad && !G.rad[i]) {
+        if (v) { v.popLand -= tr.pop; v.foodLand -= tr.food * (G.river[i] ? 1.25 : 1); }
+        G.rad[i] = rad; G.radList.push(i);
         if (!G.headless) G.dirty.push(i);
       }
     }
+    let deadAll = 0;
     for (const k in hit) {
-      const v = G.nations[+k]; const share = hit[k] / Math.max(40, v.tiles);
-      if (m.nuke) {
-        const dead = v.pop * Math.min(0.5, share * 1.6); v.pop -= dead; v.troops *= 1 - Math.min(0.6, share * 3);
-        v.losses += dead; v.casM += dead * 0.5; v.stab -= 12; v.we = Math.min(100, v.we + 15);
-        ID.logGrief(v, G.tick, 'An atomic strike killed ' + ID.fmtPop(dead) + '.');
-      } else { v.troops *= 0.985; v.stab -= 1.5; }
+      const v = G.nations[+k];
+      const dead = v.pop * Math.min(Bk.maxDead, (people[k] / cap[k]) * Bk.kill); v.pop -= dead; deadAll += dead;
+      const tl = v.troops * Math.min(0.7, (hit[k] / Math.max(40, v.tiles)) * Bk.troop); v.troops -= tl;
+      v.losses += dead + tl; v.casM += dead * 0.5 + tl; v.stab -= Bk.stab; v.we = Math.min(100, v.we + Bk.we);
+      ID.logGrief(v, G.tick, 'A ' + Bk.name.toLowerCase() + ' killed ' + ID.fmtPop(dead + tl) + '.');
+      if (v.id === G.player) ID.news(G, Bk.name.toUpperCase() + ': ' + ID.fmtPop(dead) + ' of our people and ' + ID.fmtPop(tl) + ' soldiers are dead. ' + lost.bld + ' buildings are gone' + (Bk.ringRad ? '; fallout poisons the land for ten years beyond the blast' : '') + '.', 'bad', v.id, A.id);
     }
-    ID.fx(G, m.nuke ? 'nuke' : 'boom', m.to);
-    ID.sfx(G, m.nuke ? 'nuke' : 'boom');
-    if (m.nuke) ID.Diplomacy.onNuke(G, A, hit, m.to);
+    ID.fx(G, 'nuke', m.to, { r: Bk.r, ring: Bk.ring, thermo: kind === 'thermo' });
+    ID.sfx(G, 'nuke');
+    if (A.id === G.player) ID.news(G, Bk.name + ' detonated: about ' + ID.fmtPop(deadAll) + ' dead, ' + lost.bld + ' buildings destroyed and ' + lost.dmg + ' damaged.', 'war', A.id);
+    ID.Diplomacy.onNuke(G, A, hit, m.to, kind);
   }
   C.tickRadiation = function (G) { // monthly
     const L = G.radList; if (!L || !L.length) return;
@@ -513,11 +547,13 @@
   };
 
   /* ---------------------------------------------------------------- war abilities */
+  /* dmg: condition lost by each building type in the radius [-, city, fort, port, factory, silo].
+     kill: troops lost = their troops × kill × (their land in the radius / their land), at most cap, × your equipment. */
   C.ABIL = {
-    barrage: { name: 'Artillery barrage', gold: 35, cd: 30, r: 4, range: 16, kill: 0.012, fort: 0.6, bld: 0, shock: 40,
-      desc: 'Shell a stretch of the enemy line close to your own. Kills troops, can wreck a fortress, and leaves the area shaken: your attacks there cost 40% less for forty days.' },
-    airraid: { name: 'Air raid', gold: 90, cd: 50, r: 6, range: 80, kill: 0.02, fort: 0.3, bld: 0.3, shock: 45, air: 1,
-      desc: 'Bombers strike deep behind the lines. Kills troops, can destroy factories, cities and ports, shakes the area and the enemy’s nerve. Needs military technology 3.' },
+    barrage: { name: 'Artillery barrage', gold: 35, cd: 30, r: 4, range: 16, kill: 0.6, cap: 0.03, dmg: [0, 15, 50, 15, 15, 0], shock: 40,
+      desc: 'Shell a stretch of the enemy line close to your own. Hits fortresses hard (−50 condition), and kills the troops holding that stretch: the smaller the enemy, the bigger the share of its army that stands there. The area is shaken for forty days: your attacks there cost 40% less and advance 25% faster.' },
+    airraid: { name: 'Bombing raid', gold: 90, cd: 50, r: 6, range: 80, kill: 0.15, cap: 0.01, dmg: [0, 30, 15, 40, 40, 20], shock: 45, air: 1,
+      desc: 'Bombers strike deep behind the lines at what keeps the enemy fighting: factories and ports lose 40 condition, cities 30 (with civilians killed and war weariness), forts 15. Few soldiers die. Better aircraft count: ±10% damage for each level of military technology you are ahead or behind. Needs military technology 3.' },
     reserves: { name: 'Call up the reserves', gold: 60, cd: 240, self: 1,
       desc: 'Every man who has ever held a rifle reports to the depots. An instant draft of 2% of the population, beyond your normal ceiling. Workers and peasants will not thank you, and the new men are badly equipped.' },
   };
@@ -584,20 +620,30 @@
       return '';
     }
     const D = G.nations[G.owner[tile]], W = G.W, H = G.H, x0 = tile % W, y0 = (tile / W) | 0;
-    const kill = Math.min(D.troops, D.troops * ab.kill * (1 + 0.08 * n.tech.mil) * (n.a.dp && n.a.dp.precision ? 1.35 : 1) * (n.flags.ld_fire ? 1.25 : 1) / Math.max(0.7, D.a.def || 1));
-    D.troops -= kill; D.pop -= kill; D.losses += kill; D.casM += kill; n.kills += kill;
-    let wrecked = 0;
+    const airK = ab.air ? clamp(1 + 0.1 * (n.tech.mil - D.tech.mil), 0.6, 1.4) : 1;
+    const hits = [0, 0, 0, 0, 0, 0]; let tilesIn = 0, civ = 0;
     for (let dy = -ab.r; dy <= ab.r; dy++) for (let dx = -ab.r; dx <= ab.r; dx++) {
       if (dx * dx + dy * dy > ab.r * ab.r) continue; const x = x0 + dx, y = y0 + dy; if (x < 0 || y < 0 || x >= W || y >= H) continue;
-      const i = y * W + x; const b = G.bld[i]; if (!b || G.owner[i] !== D.id) continue;
-      if ((b === B.FORT && G.rng.chance(ab.fort)) || (b !== B.FORT && b !== B.SILO && G.rng.chance(ab.bld))) { ID.removeBuilding(G, i); wrecked++; }
+      const i = y * W + x; if (G.owner[i] !== D.id) continue; tilesIn++;
+      const b = G.bld[i]; if (!b || !G.hp[i]) continue;
+      const got = ID.damage(G, i, ab.dmg[b] * airK * (0.8 + 0.4 * G.rng.next()));
+      if (got > 0) { hits[b]++; if (b === B.CITY) civ += 400 * (got / 100) * 0.02; }
     }
+    const fx = G.fortCov[tile] === D.id ? ID.fortFx(G, tile) : null;
+    const kill = Math.min(D.troops, D.troops * Math.min(ab.cap, ab.kill * tilesIn / Math.max(40, D.tiles)) * n.equip * (1 + 0.08 * n.tech.mil) * airK * (n.a.dp && n.a.dp.precision ? 1.35 : 1) * (n.flags.ld_fire ? 1.25 : 1) * (fx ? fx.shelter : 1) / Math.max(0.7, D.a.def || 1));
+    D.troops -= kill; D.pop -= kill + civ; D.losses += kill; D.casM += kill; n.kills += kill;
     (G.shock || (G.shock = [])).push({ x: x0, y: y0, r: ab.r + 1, until: G.tick + ab.shock, by: n.id, vs: D.id });
-    if (ab.air) { D.stab -= 1.5; D.we = Math.min(100, D.we + 1.5); }
-    ID.fx(G, key, tile, { r: ab.r });
+    if (ab.air) { D.stab -= 1.5 + hits[B.CITY] * 0.5; D.we = Math.min(100, D.we + 1.5 + hits[B.CITY]); }
+    const NM = [0, ['city', 'cities'], ['fort', 'forts'], ['port', 'ports'], ['factory', 'factories'], ['silo', 'silos']], parts = [];
+    for (let t = 1; t <= 5; t++) if (hits[t]) parts.push(hits[t] + ' ' + NM[t][hits[t] > 1 ? 1 : 0]);
+    const what = parts.join(', ');
+    const txt = '−' + ID.fmtPop(kill) + (parts.length ? ' · ' + parts.length + ' hit' : '');
+    ID.fx(G, key, tile, { r: ab.r, txt: n.id === G.player || D.id === G.player ? txt : '' });
     if (n.id === G.player || D.id === G.player) { ID.sfx(G, key === 'airraid' ? 'airraid' : 'barrage'); }
-    if (D.id === G.player) ID.news(G, (ab.air ? 'Enemy bombers' : 'Enemy guns') + ' from ' + n.name + ' strike your lines: ' + ID.fmtPop(kill) + ' lost' + (wrecked ? ', ' + wrecked + ' building' + (wrecked > 1 ? 's' : '') + ' destroyed' : '') + '.', 'war', n.id, D.id);
-    n.a.lastAbil = { key, kill, wrecked, t: G.tick };
+    const sum = ID.fmtPop(kill) + ' troops' + (civ >= 0.5 ? ' and ' + ID.fmtPop(civ) + ' civilians' : '') + ' killed' + (what ? '; damaged: ' + what : '; no buildings in range') + (fx ? ' (their fortress sheltered ' + Math.round((1 - fx.shelter) * 100) + '% of the garrison)' : '') + '.';
+    if (n.id === G.player) ID.news(G, ab.name + ' on ' + D.name + ': ' + sum, 'war', n.id, D.id);
+    if (D.id === G.player) ID.news(G, (ab.air ? 'Enemy bombers' : 'Enemy guns') + ' from ' + n.name + ' strike us: ' + sum, 'war', n.id, D.id);
+    n.a.lastAbil = { key, kill, hits, civ, t: G.tick };
     return '';
   };
   function shocked(G, x, y, from, to) {
@@ -621,7 +667,7 @@
       while (sp) {
         const c = stack[--sp]; size++;
         if (c === cap) hasCap = true;
-        if (G.bld[c] === B.PORT) hasPort = true;
+        if (G.bld[c] === B.PORT && G.hp[c]) hasPort = true;
         const x = c % W;
         if (x > 0 && own[c - 1] === o && comp[c - 1] < 0) { comp[c - 1] = id; stack[sp++] = c - 1; }
         if (x < W - 1 && own[c + 1] === o && comp[c + 1] < 0) { comp[c + 1] = id; stack[sp++] = c + 1; }

@@ -66,6 +66,14 @@
       if (inc > n.troops * 0.35) add(78, 'The front is giving way', ID.fmtPop(inc) + ' enemy troops are attacking, against ' + ID.fmtPop(n.troops) + ' of yours. Counter-attack where they are thin, or make peace before the line breaks.', [go('War', 'mil'), go('Foreign', 'for'), measure(G, n, 'c_rally')]);
     }
 
+    /* kit and industry */
+    if (n.equip < (n.nwars ? 0.88 : 0.8)) {
+      const fac = (n.a.armsPaid || 0) > (n.a.armsCap || 0) * 1.02;
+      add(n.nwars ? 66 : 34, 'The army is short of kit (' + pct(n.equip) + ')', 'Every attack and every defence is multiplied by it. ' + (fac ? 'Your factories cannot make more than ' + (n.a.armsCap || 0).toFixed(1) + ' gold of arms a month: the rest of the arms budget is wasted. Build or repair factories, buy from friendly partners, or keep fewer men under arms.' : 'The arms budget pays ' + (n.a.armsPaid || 0).toFixed(1) + ' a month against a need of ' + (n.a.armsNeed || 0).toFixed(1) + '. Raise its share, or keep fewer men under arms.'), [go('Economy', 'eco'), go('War', 'mil')]);
+    }
+    if (n.a.wrecks) { const w = G.blist.find((i) => G.owner[i] === n.id && G.bld[i] && !G.hp[i]); add(n.a.wrecks >= 3 ? 52 : 30, n.a.wrecks + ' wrecked building' + (n.a.wrecks > 1 ? 's' : ''), 'Wrecked buildings do nothing: no output, no capacity, no cover. Rebuilding costs half the price and half the time.', [{ label: 'Rebuild them all', act: 'rebuildAll', cls: 'red' }, w != null ? { label: 'Show one', act: 'goto', arg: w, cls: 'ghost' } : null]); }
+    if (n.atom && n.atom.on && n.a.atomStall) add(40, 'The atomic programme is stalled', 'It costs ' + (n.a.atomCost || 0).toFixed(1) + ' gold a month and the treasury cannot pay: no progress until it can.', [go('War', 'mil'), go('Economy', 'eco')]);
+
     /* stability */
     if (n.stab < 42) {
       const sec = ID.LAWS.security.opts[n.laws.security];

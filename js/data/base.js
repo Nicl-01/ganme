@@ -19,17 +19,19 @@
   ID.BUILDINGS = [
     null,
     { id: 1, key: 'city', name: 'City', cost: 220, upkeep: 0.7, glyph: 'C',
-      desc: 'Raises population capacity by 400K and adds urban output. Cities concentrate workers and intelligentsia — and their politics.' },
+      desc: 'Room for 400K more people and 6 output a month, both scaled by its condition. Cities concentrate workers and intelligentsia, and their politics. War, bombing and capture damage it.' },
     { id: 2, key: 'fort', name: 'Fortress', cost: 90, upkeep: 0.5, glyph: 'F',
-      desc: 'Every tile within 6 costs attackers 2.5× and slows their front. Destroyed if its own tile falls.' },
+      desc: 'Covers every tile within 6. At full condition attackers there advance at 56% speed and lose 2.5× the men, and shelling or bombing kills half as many defenders. Artillery and bombers wear it down; destroyed if its own tile falls.' },
     { id: 3, key: 'port', name: 'Port', cost: 130, upkeep: 0.4, glyph: 'P', needs: 'coast',
-      desc: 'Lets you launch naval landings and trade overseas. A coastal pocket with a port stays in supply.' },
+      desc: 'Carries overseas trade: each working port carries three treaties with states you do not border at full value (otherwise they go overland at 35%). Launches naval landings, adds sea power, and keeps a coastal pocket in supply.' },
     { id: 4, key: 'factory', name: 'Factory', cost: 160, upkeep: 0.5, glyph: 'I',
-      desc: 'Adds industrial output and arms. Every factory also adds to the power of the workers who run it.' },
+      desc: 'Adds 12 industrial capacity (more with industrial technology and ore). Capacity is output, and it is the ceiling on the arms your army can be given. Every factory also adds to the power of the workers who run it.' },
     { id: 5, key: 'silo', name: 'Missile silo', cost: 480, upkeep: 1.8, glyph: 'M', needs: 'mil4',
-      desc: 'Launches missiles. With military technology 6 it can carry atomic warheads. Requires military technology 4.' },
+      desc: 'Launches missiles, and atomic weapons once your atomic programme has finished. Requires military technology 4.' },
   ];
   ID.FORT_RADIUS = 6;
+  /* A fortress at full condition: front progress cost ×(1+cost), attacker losses ×(1+loss), shelling/bombing kills ×(1−shelter). Scaled by condition. */
+  ID.FORT = { cost: 0.8, loss: 1.5, shelter: 0.5 };
 
   /* Recruitment laws. maxMob: ceiling on the share of population under arms. */
   ID.RECRUIT = {

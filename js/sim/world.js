@@ -70,7 +70,9 @@
     return r.maxMob + (ID.LAWS.mobil.opts[n.laws.mobil || 'peace'].mob || 0) + (n.mods ? ID.mod(n, 'mob') : 0);
   };
   ID.ideo = (n) => ID.IDEOLOGIES[n.ideo];
-  ID.popCap = (n) => Math.max(20, n.popLand * (1 + 0.07 * n.tech.agr) + n.nb[B.CITY] * 400);
+  ID.popCap = (n) => Math.max(20, n.popLand * (1 + 0.07 * n.tech.agr) + ID.nbe(n, B.CITY) * 400);
+  /* Buildings counted by condition: a city at 40% counts as 0.4 of a city. Refreshed monthly by ID.structMonth. */
+  ID.nbe = (n, t) => (n.a && n.a.nbe ? n.a.nbe[t] : n.nb[t]);
 
   ID.genClaims = function (G, n) {
     const own = new Set(), seen = new Set(); let frontier = [];
@@ -111,7 +113,7 @@
     if (b) {
       if (from) G.nations[from].nb[b]--;
       if (b === B.FORT || b === B.SILO || !to) { ID.removeBuilding(G, i, true); G.fortsDirty = true; }
-      else G.nations[to].nb[b]++;
+      else { G.nations[to].nb[b]++; if (from && G.warM[from * MAXN + to]) ID.damage(G, i, ID.CAPTURE_DMG[b]); } // taken by storm
     }
     if (from && G.nations[from].capital === i) G.capLost.push([from, to]);
     if (!G.headless) G.dirty.push(i);
@@ -121,7 +123,7 @@
     const b = G.bld[i]; if (!b) return;
     const o = G.owner[i];
     if (!skipCount && o) G.nations[o].nb[b]--;
-    G.bld[i] = 0;
+    G.bld[i] = 0; G.hp[i] = 0;
     const k = G.blist.indexOf(i); if (k >= 0) G.blist.splice(k, 1);
     const P = G.provinces[G.prov[i]];
     if (b === B.CITY) P.nCity = Math.max(0, P.nCity - 1); else if (b === B.FACTORY) P.nFact = Math.max(0, P.nFact - 1);
@@ -130,7 +132,7 @@
   };
   ID.placeBuilding = function (G, i, type) {
     if (G.bld[i] || G.terrain[i] === T.SEA) return false;
-    G.bld[i] = type; G.blist.push(i);
+    G.bld[i] = type; G.hp[i] = 100; G.blist.push(i);
     const o = G.owner[i]; if (o) G.nations[o].nb[type]++;
     const P = G.provinces[G.prov[i]];
     if (type === B.CITY) P.nCity++; else if (type === B.FACTORY) P.nFact++;
@@ -139,19 +141,68 @@
     return true;
   };
   ID.recomputeForts = function (G) {
-    const cov = G.fortCov; cov.fill(0); const W = G.W, H = G.H, R = ID.FORT_RADIUS;
+    const cov = G.fortCov, q = G.fortQ; cov.fill(0); q.fill(0); const W = G.W, H = G.H, R = ID.FORT_RADIUS;
     for (const i of G.blist) {
-      if (G.bld[i] !== B.FORT) continue;
-      const o = G.owner[i], x0 = i % W, y0 = (i / W) | 0;
+      if (G.bld[i] !== B.FORT || !G.hp[i]) continue; // a wrecked fort covers nothing
+      const o = G.owner[i], x0 = i % W, y0 = (i / W) | 0, c = G.hp[i];
       for (let dy = -R; dy <= R; dy++) {
         const y = y0 + dy; if (y < 0 || y >= H) continue;
         for (let dx = -R; dx <= R; dx++) {
           const x = x0 + dx; if (x < 0 || x >= W || dx * dx + dy * dy > R * R) continue;
-          cov[y * W + x] = o;
+          const j = y * W + x; if (cov[j] === o && q[j] >= c) continue; // overlapping forts: the strongest counts
+          cov[j] = o; q[j] = c;
         }
       }
     }
     G.fortsDirty = false;
+  };
+  /* What a fortress does to an attack on tile i, after the attacker's style discounts: speed and loss multipliers. */
+  ID.fortFx = function (G, i, style) {
+    if (G.fortsDirty) ID.recomputeForts(G);
+    const c = (G.fortQ[i] || 0) / 100, S = (style && ID.STYLES[style]) || {}, k = c * (1 - (S.ignoreFort || 0));
+    return { c, cost: 1 + ID.FORT.cost * k, loss: 1 + ID.FORT.loss * k, shelter: 1 - ID.FORT.shelter * c };
+  };
+
+  /* ---------------------------------------------------------------- condition: damage, repair, rebuild */
+  ID.CAPTURE_DMG = [0, 30, 0, 40, 40, 0]; // city, -, port, factory: what a building loses when its tile is taken in war
+  ID.damage = function (G, i, pts) {
+    const b = G.bld[i]; if (!b || pts <= 0) return 0;
+    const before = G.hp[i]; G.hp[i] = Math.max(0, before - Math.round(pts));
+    if (b === B.FORT && G.hp[i] !== before) G.fortsDirty = true;
+    if (!G.headless) G.dirty.push(i);
+    return before - G.hp[i];
+  };
+  ID.repairRate = (G, n) => (n.nwars ? 2 : 6) * ID.clamp(0.5 + (n.a.ic || 0) / 200, 0.5, 1.5);
+  ID.repairCost = (t, pts) => ID.BUILDINGS[t].cost * 0.005 * pts;
+  /* Monthly: damaged buildings mend (paid from the treasury); effective counts by condition. */
+  ID.structMonth = function (G, countOnly) {
+    for (const n of G.nations) if (n && n.alive) { n.a.nbe = [0, 0, 0, 0, 0, 0]; n.a.wrecks = 0; n.a.damaged = 0; n.a.repairPaid = 0; }
+    for (const i of G.blist) {
+      const n = G.nations[G.owner[i]]; if (!n || !n.alive) continue;
+      const t = G.bld[i]; let h = G.hp[i];
+      if (h > 0 && h < 100 && !countOnly) {
+        const pts = Math.min(100 - h, ID.repairRate(G, n)), cost = ID.repairCost(t, pts);
+        if (n.gold >= cost) { n.gold -= cost; n.a.repairPaid += cost; h = G.hp[i] = h + Math.round(pts); if (t === B.FORT) G.fortsDirty = true; if (!G.headless) G.dirty.push(i); }
+      }
+      n.a.nbe[t] += h / 100;
+      if (!h) n.a.wrecks++; else if (h < 100) n.a.damaged++;
+    }
+  };
+  ID.rebuildCost = (G, n, i) => Math.round(ID.BUILDINGS[G.bld[i]].cost * 0.5);
+  ID.canRebuild = function (G, n, i) {
+    if (G.owner[i] !== n.id) return 'Not your land.';
+    if (!G.bld[i] || G.hp[i] > 0) return 'Nothing to rebuild here.';
+    if (G.rad[i]) return 'This land is irradiated.';
+    for (const q of G.builds) if (q.i === i) return 'Rebuilding is already under way.';
+    if (n.gold < ID.rebuildCost(G, n, i)) return 'Not enough gold (' + ID.rebuildCost(G, n, i) + ' needed).';
+    return '';
+  };
+  ID.startRebuild = function (G, n, i) {
+    const why = ID.canRebuild(G, n, i); if (why) return why;
+    const t = G.bld[i]; n.gold -= ID.rebuildCost(G, n, i);
+    G.builds.push({ i, type: t, owner: n.id, done: G.tick + Math.round(ID.buildDays(G, n, t) * 0.5), start: G.tick, re: 1 });
+    if (!G.headless) G.dirty.push(i);
+    return '';
   };
 
   ID.buildCost = function (G, n, type) {
@@ -193,7 +244,10 @@
       if (G.owner[q.i] !== q.owner) { G.builds.splice(k, 1); continue; }
       if (G.tick >= q.done) {
         G.builds.splice(k, 1);
-        if (ID.placeBuilding(G, q.i, q.type) && q.owner === G.player) { ID.sfx(G, 'build'); ID.fx(G, 'build', q.i); }
+        let ok;
+        if (q.re) { ok = G.bld[q.i] === q.type; if (ok) { G.hp[q.i] = 100; if (q.type === B.FORT) G.fortsDirty = true; if (!G.headless) G.dirty.push(q.i); } }
+        else ok = ID.placeBuilding(G, q.i, q.type);
+        if (ok && q.owner === G.player) { ID.sfx(G, 'build'); ID.fx(G, 'build', q.i); }
       }
     }
   };
@@ -285,7 +339,7 @@
       v: 1, seed, size, scenario: sc ? sc.id : 'random', difficulty: opts.difficulty || 'iron', headless: !!opts.headless, challenge: opts.challenge || null, ironman: !!opts.ironman,
       rng: new ID.RNG(seed ^ 0x5bd1e995), tick: (startYear - ID.START_YEAR) * 360, speed: 2, paused: true,
       W: map.W, H: map.H, N, terrain: map.terrain, river: map.river, coast: map.coast, prov: map.prov, provinces: map.provinces, landCount: map.landCount,
-      owner: new Uint8Array(N), bld: new Uint8Array(N), cut: new Uint8Array(N), cutAge: new Uint8Array(N), fortCov: new Uint8Array(N), rad: new Uint8Array(N),
+      owner: new Uint8Array(N), bld: new Uint8Array(N), hp: new Uint8Array(N), cut: new Uint8Array(N), cutAge: new Uint8Array(N), fortCov: new Uint8Array(N), fortQ: new Uint8Array(N), rad: new Uint8Array(N),
       nations: [null], player: 0, attacks: [], boats: [], missiles: [], builds: [], blist: [],
       dip: {}, warM: new Uint8Array(MAXN * MAXN), rel: new Float32Array(MAXN * MAXN), blocs: [null], wars: [], border: [],
       news: [], chronicle: [], stats: { pop: 1, gdp: 1, trade: 1, byIdeo: {}, byFam: {} }, world: { tension: 0, depressionAt: 0, depression: 0, waves: [], greatWar: 0 },
@@ -450,7 +504,7 @@
       const merch = ID.IDEOLOGIES[a.ideo].econ.model === 'trade' || ID.IDEOLOGIES[b.ideo].econ.model === 'trade';
       if (reach && ID.ideoAffinity(a.ideo, b.ideo) > (merch ? -20 : 5) && rng.chance(merch ? 0.85 : 0.5)) ID.dipOf(G, a.id, b.id).trade = 1;
     }
-    ID.recomputeForts(G);
+    ID.recomputeForts(G); ID.structMonth(G, true);
     for (const n of nats) ID.Politics.initNation(G, n);
     ID.Combat.updateSupply(G);
     ID.Game.updateStats(G);

@@ -20,9 +20,10 @@
     st.pop = 0; st.gdp = 0; st.trade = 0; st.tiles = 0; st.byIdeo = {}; st.byFam = {}; st.techMax = { ind: 0, mil: 0, agr: 0 };
     const vals = { ind: [], gdp: [], power: [], gdppc: [], pop: [], tiles: [], score: [] };
     const pcs = [];
-    let totP = 0;
+    let totP = 0, kit = 0, men = 0;
     for (const n of ns) {
       st.pop += n.pop; st.gdp += n.gdp; st.trade += n.tradeInc; st.tiles += n.tiles;
+      if (n.a.armsMade != null) { kit += n.a.armsMade + n.a.armsImp; men += n.troops; }
       const I = ID.ideo(n);
       (st.byIdeo[n.ideo] = st.byIdeo[n.ideo] || { n: 0, pop: 0, tiles: 0 }); st.byIdeo[n.ideo].n++; st.byIdeo[n.ideo].pop += n.pop; st.byIdeo[n.ideo].tiles += n.tiles;
       (st.byFam[I.family] = st.byFam[I.family] || { n: 0, pop: 0, tiles: 0 }); st.byFam[I.family].n++; st.byFam[I.family].pop += n.pop; st.byFam[I.family].tiles += n.tiles;
@@ -32,6 +33,7 @@
       vals.ind.push([n.id, n.ind]); vals.gdp.push([n.id, n.gdp]); vals.power.push([n.id, pw]); vals.gdppc.push([n.id, n.gdppc || 0]); vals.pop.push([n.id, n.pop]); vals.tiles.push([n.id, n.tiles]); vals.score.push([n.id, n.a.score]);
       pcs.push((n.gdp / Math.max(1, n.pop)) * 1000);
     }
+    st.armsRef = men > 0 ? Math.max(0.02, kit / men) : 0.035; // the world's kit per soldier: equipment 100% means this much
     st.rank = {};
     for (const k in vals) { vals[k].sort((a, b) => b[1] - a[1]); st.rank[k] = {}; vals[k].forEach((v, i) => { st.rank[k][v[0]] = i + 1; }); }
     st.top = vals.power.length ? vals.power[0][0] : 0;
@@ -170,6 +172,7 @@
   /* ---------------------------------------------------------------- the loop */
   Gm.month = function (G) {
     ID.recalcProvinceOwners(G); ID.recalcBorders(G);
+    ID.structMonth(G);
     ID.Economy.worldMonth(G);
     // a state whose last province broke away no longer exists
     for (const n of ID.alive(G)) if (n.tiles <= 0) {
@@ -222,7 +225,7 @@
     const rel = []; for (let a = 1; a < nN; a++) for (let b = 1; b < nN; b++) rel.push(Math.round(G.rel[a * MAXN + b]));
     const o = {
       v: 1, seed: G.seed, size: G.size, scenario: G.scenario, difficulty: G.difficulty, challenge: G.challenge, ironman: G.ironman, tick: G.tick, startTick: G.startTick || 0, speed: G.speed, rng: G.rng.s, era: G.era,
-      owner: rle(G.owner), bld: rle(G.bld), rad: G.radList.map((i) => [i, G.rad[i]]),
+      owner: rle(G.owner), bld: rle(G.bld), hp: rle(G.hp), rad: G.radList.map((i) => [i, G.rad[i]]),
       nations: G.nations, player: G.player, rel,
       prov: G.provinces.slice(1).map((P) => [P.core, Math.round(P.unrest * 10) / 10, P.opp, Math.round(P.oppStr * 10) / 10, Math.round(P.integ), P.lastOwner, P.sponsor, P.oil || 0, P.oilFound || 0, P.oilCo || 0, P.oilShare || 0, P.oilAt || 0, P.canal || 0]), fronts: G.fronts || null,
       attacks: G.attacks.map((a) => ({ id: a.id, from: a.from, to: a.to, troops: a.troops, committed: a.committed, style: a.style, amphib: a.amphib, taken: a.taken })),
@@ -239,7 +242,7 @@
     const G = {
       v: 1, seed: o.seed, size: o.size, scenario: o.scenario, difficulty: o.difficulty, headless: false, challenge: o.challenge, ironman: o.ironman, rng: new ID.RNG(1), tick: o.tick, startTick: o.startTick || 0, speed: o.speed || 2, paused: true, era: o.era,
       W: map.W, H: map.H, N, terrain: map.terrain, river: map.river, coast: map.coast, prov: map.prov, provinces: map.provinces, landCount: map.landCount,
-      owner: new Uint8Array(N), bld: new Uint8Array(N), cut: new Uint8Array(N), cutAge: new Uint8Array(N), fortCov: new Uint8Array(N), rad: new Uint8Array(N),
+      owner: new Uint8Array(N), bld: new Uint8Array(N), hp: new Uint8Array(N), cut: new Uint8Array(N), cutAge: new Uint8Array(N), fortCov: new Uint8Array(N), fortQ: new Uint8Array(N), rad: new Uint8Array(N),
       nations: o.nations, player: o.player, attacks: [], boats: o.boats || [], missiles: o.missiles || [], builds: o.builds || [], blist: [],
       dip: o.dip || {}, warM: new Uint8Array(MAXN * MAXN), rel: new Float32Array(MAXN * MAXN), blocs: o.blocs, wars: [], border: [],
       news: o.news || [], chronicle: o.chronicle || [], stats: { pop: 1, gdp: 1, trade: 1, byIdeo: {}, byFam: {} }, world: o.world,
@@ -248,7 +251,7 @@
     G.rng.s = o.rng >>> 0;
     G.historical = !!o.historical; G.story = o.story || null; G.fronts = o.fronts || null; if (G.historical && !G.story) ID.Story.init(G);
     if (sc) for (const n of G.nations) if (n && !n.tree && !n.civilOf && ID.FOCUS.nations[n.base]) n.tree = n.base; // saves from before programmes existed
-    unrle(o.owner, G.owner); unrle(o.bld, G.bld);
+    unrle(o.owner, G.owner); unrle(o.bld, G.bld); if (o.hp) unrle(o.hp, G.hp); else for (let i = 0; i < N; i++) if (G.bld[i]) G.hp[i] = 100; // saves from before building condition
     for (const [i, v] of o.rad || []) { G.rad[i] = v; G.radList.push(i); }
     for (let p = 1; p < G.provinces.length; p++) {
       const P = G.provinces[p], s = o.prov[p - 1];
@@ -264,7 +267,7 @@
     for (const key in G.dip) if (G.dip[key].war) { const w = G.dip[key].war; G.warM[w.a * MAXN + w.b] = G.warM[w.b * MAXN + w.a] = 1; }
     G._mark = new Int32Array(N);
     for (const a of o.attacks || []) { a.heap = new ID.Heap(); a.prog = 0; a.base = G.tick; a.scan = -999; a.idle = 0; G.attacks.push(a); }
-    ID.recalcBorders(G); ID.recomputeForts(G);
+    ID.recalcBorders(G); ID.recomputeForts(G); ID.structMonth(G, true);
     for (const n of G.nations) if (n && n.alive) ID.Combat.refresh(G, n);
     ID.Combat.updateSupply(G); Gm.updateStats(G);
     return G;
