@@ -70,6 +70,17 @@ if (sailor) {
 /* arms are capped by factories */
 ok(n.a.armsMade <= n.a.armsCap + 1e-9 && near(n.a.armsCap, (n.a.ic || 0) * ID.Economy.ARMS_K * (ID.ideo(n).econ.model === 'plan' || ID.ideo(n).econ.model === 'cyber' ? ID.Economy.PLAN_ARMS : 1), 1e-6), 'arms made never exceed what the factories can turn out');
 
+/* the arsenal */
+{
+  const E = ID.Economy; E.initArsenal(G, n);
+  const a0 = n.ars = 24 * n.a.armsNeed; n.a.refill = n.a.armsNeed; n.a.burn = 0; n.casM = 0;
+  E.arsenalMonth(G, n); ok(Math.abs(n.ars - a0) < a0 * 0.01 && Math.abs(n.equip - 1) < 0.02, 'in peace an arsenal of 24 months of needs, refilled at one month a month, holds kit at 100%');
+  n.a.burn = n.a.armsNeed * 0.6; const a1 = n.ars; E.arsenalMonth(G, n); ok(n.ars < a1, 'at war it drains (' + Math.round(a1) + ' → ' + Math.round(n.ars) + ')');
+  const v = al.find((o) => o !== n && ID.atWar(G, n.id, o.id)), vf = G.blist.find((i) => G.owner[i] === v.id && (G.bld[i] === B.FACTORY || G.bld[i] === B.CITY));
+  v.ars = 1000; const mine = n.ars; ID.setOwner(G, vf, n.id);
+  ok(v.ars < 1000 && n.ars > mine, 'taking an enemy factory or city captures part of their arsenal (' + Math.round(n.ars - mine) + ')');
+}
+
 /* the atomic programme */
 const E = ID.Economy, at = E.atom(n);
 n.tech.mil = 5; ok(/technology 6/.test(E.atomBlock(G, n, 'atom')), 'no programme before military technology 6');
@@ -105,6 +116,7 @@ const da = strike('atom'), dt = strike('thermo');
 ok(dt > da, 'the thermonuclear bomb kills a larger share than the atomic one');
 
 /* saves */
+ID.Combat.updateSupply(G); // settle the pockets the tests above left, as loading does
 const str = ID.Game.save(G), G2 = ID.Game.load(str);
 ok(G2.blist.every((i) => G2.hp[i] === G.hp[i]) && G2.blist.length === G.blist.length, 'condition survives a save');
 const o = JSON.parse(str); delete o.hp; for (const k of o.nations) if (k) { delete k.atom; delete k.thermo; }

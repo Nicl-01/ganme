@@ -30,7 +30,8 @@
     if (e.model === 'council') return;
     if (I.flags.fiveYear) { if (!n.plan && n.auth >= 15) ID.Events.runDecision(G, n, 'five_year_plan'); if (n.plan) return; }
     const b = Object.assign({ welfare: 0, security: 0, science: 0, arms: 0, heavy: 0 }, base);
-    if (n.nwars) { b.arms += 0.14; b.welfare -= 0.04; b.science -= 0.03; }
+    if (n.nwars) { b.arms += 0.14; b.welfare -= 0.04; b.science -= 0.03; if (ID.Economy.monthsLeft(n) < 12) { b.arms += 0.08; b.welfare -= 0.04; } }
+    else if (n.equip < 0.9 && n.gold > 200) b.arms += 0.05; // restock after a war
     else if (n.a.threatened) { b.arms += 0.07; b.science -= 0.02; }
     if (n.fs.workers < 40 || n.fs.peasants < 38) b.welfare += 0.06;
     if (n.coupRisk > 0.01) { b.arms += 0.05; b.security += 0.03; }

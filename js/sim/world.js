@@ -113,7 +113,14 @@
     if (b) {
       if (from) G.nations[from].nb[b]--;
       if (b === B.FORT || b === B.SILO || !to) { ID.removeBuilding(G, i, true); G.fortsDirty = true; }
-      else { G.nations[to].nb[b]++; if (from && G.warM[from * MAXN + to]) ID.damage(G, i, ID.CAPTURE_DMG[b]); } // taken by storm
+      else {
+        G.nations[to].nb[b]++;
+        if (from && G.warM[from * MAXN + to]) { // taken by storm: damaged, and the depots there change hands
+          ID.damage(G, i, ID.CAPTURE_DMG[b]);
+          const A = G.nations[from], Z = G.nations[to];
+          if ((b === B.FACTORY || b === B.CITY) && A.ars > 0) { const l = A.ars * ID.Economy.ARS.loot; A.ars -= l; Z.ars = (Z.ars || 0) + l; Z.a.loot = (Z.a.loot || 0) + l; A.a.lootLost = (A.a.lootLost || 0) + l; }
+        }
+      }
     }
     if (from && G.nations[from].capital === i) G.capLost.push([from, to]);
     if (!G.headless) G.dirty.push(i);
@@ -510,7 +517,7 @@
     ID.Game.updateStats(G);
     for (const n of nats) { const g = n.gold; ID.Economy.month(G, n); n.gold = g; n.debt = 0; n.sci = 0; }
     G.stats.gdppcRef0 = 0; ID.Game.updateStats(G);
-    for (const n of nats) { n.ls = 50; ID.Economy.month(G, n); n.gold = n.gold - n.net; n.debt = 0; n.sci = 0; n.lsPrev = n.ls; n.a.lsHist = []; n.a.gdpHist = []; if (n.a.eqTarget != null) n.equip = n.a.eqTarget; ID.Politics.initNation(G, n); } // start at the kit the country can actually afford
+    for (const n of nats) { n.ls = 50; ID.Economy.month(G, n); n.gold = n.gold - n.net; n.debt = 0; n.sci = 0; n.lsPrev = n.ls; n.a.lsHist = []; n.a.gdpHist = []; if (n.a.eqTarget != null) { n.equip = n.a.eqTarget; n.ars = null; ID.Economy.initArsenal(G, n); } ID.Politics.initNation(G, n); } // start with the arsenal the country can actually keep
     G.era = ID.eraOf(G.tick); G.startTick = G.tick;
     for (const n of nats) n.a.startIdeo = n.ideo;
     if (sc) for (const n of nats) ID.Focus.applySpirits(G, n);

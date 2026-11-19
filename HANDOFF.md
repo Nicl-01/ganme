@@ -634,11 +634,20 @@ actions, programmes, the Opposition map mode and the save format; see the plan i
   after the style's `ignoreFort` (recomputes cover first if it is dirty). Same full-strength numbers as before
   (×1.8 progress cost, ×2.5 losses), now scaled by condition; new: shelling and bombing kill half as many under cover.
 - **Industry** (`sim/economy.js`): `n.a.ic` = factories by condition × 12 × (1 + 0.1 × ind tech) × ore. Arms:
-  `E.armsCap(n)` = ic × 0.25 (×1.2 planned). Kit is now relative: need = troops × `G.stats.armsRef` (the world's
-  arms per soldier, set in `Game.updateStats`), target = 0.62 + 0.38 × (made + imported) ÷ need. Arms money beyond
-  the factories' capacity buys abroad at 1.5× from trade partners with fit ≥ 1 and spare capacity (`n.a.icSpare`), up
-  to a quarter of need; autarky buys nothing. Before this the arms budget was 5–20× what armies needed, so every
-  state sat at the 135% ceiling and kit never showed.
+  `E.armsCap(n)` = ic × 0.25 (×1.2 planned); arms money beyond it buys abroad at 1.5× from trade partners with fit ≥ 1
+  and spare capacity (`n.a.icSpare`), up to a quarter of need; autarky buys nothing.
+- **The arsenal** (`E.ARS`, `E.arsenalMonth`, `E.kitTarget`; `n.ars`, saved with the nation; old saves and new states
+  get one from their kit via `E.initArsenal`). Kit is no longer a gauge drifting toward a budget ratio (the first
+  session-11 version; the user found it "not a fun mechanic"): it is a stock. In: arms made + bought each month
+  (`n.a.refill`), depots captured with enemy factories and cities (3% of their arsenal each, in `setOwner`). Out: 1/24
+  ages out monthly; at war `E.warBurn` = 0.6 × a month's needs × posture (attack 1.3, balanced 1, dig in 0.7, elastic
+  0.9; ×0.3 with no front moving); the kit of the fallen (arsenal × 0.25 × casualties ÷ troops); shells for every
+  barrage, raid or doctrine order (30% of its gold). Kit = 62% + 38% × arsenal ÷ (24 × need), 62–135%; need = army
+  size smoothed over ~a year (`E.army`) × `G.stats.armsRef` (world arms per soldier, drifting 5% a month). Peace
+  settles where the old formula did; a great-power war drains it over 1–2 years (Aurelia and Karsova from the high 80s
+  to ~68% in 1914–16, rebuilt after). `E.monthsLeft(n)`. AI adds 8% arms when an arsenal will run dry within a year,
+  and restocks after a war. Council congresses keep arms motions they passed (`n.a.mot`); budget changes and motions
+  show the new target at once (`E.kitNow`); countries start at the kit they can keep.
 - **Trade**: one route per treaty in `n.a.routes` (`{o, base, fit, border, oPort, port, reach, sea, v}`). Value =
   (0.8 + `E.ROUTE_K` 0.04 × the smaller output) × reach × fit × law. Neighbours full reach; others through a working
   port at each end, `E.PORT_ROUTES` = 3 per port at full value, the rest overland at `E.OVERLAND` 35% (the old flat
@@ -662,8 +671,11 @@ actions, programmes, the Opposition map mode and the save format; see the plan i
   share of the country's people in the blast, at most 60%) and `C.BOMB.thermo` (22 / 34 at −70 with fallout for 10
   years, deaths 3.2 ×, at most 90%; world opinion −60, threat +120). Missiles unchanged. AI: majors (and states facing
   a nuclear enemy) start programmes when rich; thermonuclear devices are used only when dying or avenging.
-- **Shown, not hidden** (`ui/ui.js`, `ui/panels.js`, `ui/render.js`, `ui/advice.js`): top band (Troops shows
-  `kit N%`, Industry shows wrecks; both tooltips give the formula and the limiting factor), tile card
+- **Shown, not hidden** (`ui/ui.js`, `ui/panels.js`, `ui/render.js`, `ui/advice.js`): the arsenal card at the top of
+  the War panel (store, months of needs, net flow, every flow in and out in its tooltip `UI.kitText`), months of war
+  left in the top band and an "Arsenal running dry" alert at war, the enemy's kit and months left on its tile card and
+  in the war list; top band (Troops shows
+  `kit N%` with ▲/▼, Industry shows wrecks; both tooltips give the formula and the limiting factor), tile card
   (`UI.bldCard`: condition, what the building does now in numbers, repair rate and cost, Rebuild button; fortress
   cover row with speed/loss multipliers and a tooltip for each style; atomic and thermonuclear strike buttons with
   `UI.bombTip`), map (condition bars under damaged buildings, crossed-out grey wrecks, dashed fortress-cover rings for
@@ -701,6 +713,13 @@ iron auto hist`); "before" was measured on a copy of the session 10 code:
 | Human proxy: at war / peace median / fell | 7% / 5.2 y / 3 of 8 | 6% / 6.3 y / 5 of 8 |
 | Soak, AI playing the player (historical): won / survived / fell | 6 / 6 / 12 of 24 | 3 / 10 / 11 of 24 |
 | AI treasury per state at the end (historical / random) | 38.6K / 21.1K | 51.5K / 30.9K |
+
+**After the arsenal** (same tools): kit at the end 1.11 average, 0.73 weakest; historical 20 runs: wars 31.4 (session 10
+code 30.0), civil wars 3.5 (3.1), peace median 6.2 y (7.3), largest 22% (20%), max 28%; human proxy at war 7%, peace
+median 6.9 y, fell 4 of 8; soak won 7 / survived 9 / fell 8 of 24; random: wars 25.6, largest avg 25%, max 56% (one
+run); atomic strikes 0.5 a run. A drained state looks weak to the AI (power uses attack, which uses kit), so wars come
+a little more often and peace spells are about a year shorter. If that is too much, have `considerWar` discount a
+target's low kit, or slow the drain (`E.ARS.war`).
 
 Notes: the 8-run war rise (27 → 28.5) is seed luck; on 20 runs old and new code are level (30.0 / 29.3), and with the
 old kit formula the new code also gave 30.5. Soak outcomes change country by country with any code change (Cassine

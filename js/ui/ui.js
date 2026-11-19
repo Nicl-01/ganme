@@ -229,7 +229,7 @@
     set('sv-food', '<span class="' + (n.foodBal < 0.93 ? 'bad' : n.foodBal < 1 ? 'warn' : '') + '">' + Math.round(n.foodBal * 100) + '%</span>');
     set('sv-pop', ID.fmtPop(n.pop));
     const kt = n.a.eqTarget != null ? n.a.eqTarget : n.equip;
-    set('sv-troops', ID.fmtPop(n.troops) + '<small class="' + (n.equip < 0.7 || (n.nwars && n.equip < 0.8) ? 'bad' : n.equip > 1.05 ? 'good' : '') + '">kit ' + Math.round(n.equip * 100) + '%' + (kt > n.equip + 0.015 ? ' ▲' : kt < n.equip - 0.015 ? ' ▼' : '') + '</small>');
+    set('sv-troops', ID.fmtPop(n.troops) + '<small class="' + (n.equip < 0.7 || (n.nwars && n.equip < 0.8) ? 'bad' : n.equip > 1.05 ? 'good' : '') + '">kit ' + Math.round(n.equip * 100) + '%' + (kt > n.equip + 0.015 ? ' ▲' : kt < n.equip - 0.015 ? ' ▼' : '') + (n.nwars && UI.monthsLeft(n) ? ' · ' + UI.monthsLeft(n).replace(' months', 'mo') : '') + '</small>');
     const cls = (v) => (v < 30 ? 'bad' : v < 45 ? 'warn' : '');
     const arrow = (cur, tgt) => (tgt > cur + 1.5 ? '<small class="good">▲</small>' : tgt < cur - 1.5 ? '<small class="bad">▼</small>' : '');
     set('sv-stab', '<span class="' + cls(n.stab) + '">' + Math.round(clamp(n.stab, 0, 100)) + '</span>' + arrow(n.stab, n.a.stabTgt != null ? n.a.stabTgt : n.stab));
@@ -243,13 +243,16 @@
     if (force || !UI._tipsAt || G.tick - UI._tipsAt > 30) { UI._tipsAt = G.tick; UI.topTips(); }
   };
   /* The army's kit in one paragraph: where it comes from and what it does. */
+  /* The arsenal in plain numbers: what it holds, what flows in and out each month, how long a war it can carry. */
+  UI.monthsLeft = (n) => { const m = ID.Economy.monthsLeft(n); return m === Infinity || m > 120 ? '' : Math.max(0, Math.round(m)) + ' months'; };
   UI.kitText = function (n) {
-    const need = n.a.armsNeed || 1, made = n.a.armsMade || 0, imp = n.a.armsImp || 0, cap = n.a.armsCap || 0, paid = n.a.armsPaid || 0;
-    const lim = paid > cap * 1.02 ? 'factories' : 'budget';
-    const tg = n.a.eqTarget != null ? n.a.eqTarget : n.equip;
-    return '<b>Kit ' + Math.round(n.equip * 100) + '%</b>' + (Math.abs(tg - n.equip) > 0.01 ? ', heading for <b>' + Math.round(tg * 100) + '%</b>' : '') + '. It multiplies attack by ×' + n.equip.toFixed(2) + ' and defence by ×' + Math.pow(n.equip, 0.7).toFixed(2) + '. 100% is the world’s average kit per soldier.' +
-      '<div class="kv"><span>Your soldiers need</span><b>' + need.toFixed(1) + '/mo</b><span>Your factories make</span><b class="' + (made < need ? 'bad' : 'good') + '">' + made.toFixed(1) + '/mo</b>' + (imp > 0.05 ? '<span>Bought abroad</span><b>' + imp.toFixed(1) + '/mo</b>' : '') + '<span>Limited by</span><b>' + (lim === 'factories' ? '<span class="warn">factories (' + cap.toFixed(1) + ')</span>' : 'arms budget (' + paid.toFixed(1) + ')') + '</b></div>' +
-      '<span class="dim">Kit heads for 62% + 38% × (made + bought) ÷ need, at most 135%, a tenth of the way each month. ' + (lim === 'factories' ? 'More arms money is wasted: build factories, or buy from friendly partners with spare capacity (up to a quarter of need, at 1.5× the price).' : 'Raise the arms share of the budget, or keep fewer men under arms.') + '</span>';
+    const E = ID.Economy, a = n.a, need = a.armsNeed || 1, cap = a.armsCap || 0, paid = a.armsPaid || 0, ars = n.ars || 0;
+    const lim = paid > cap * 1.02 ? 'factories' : 'budget', tg = a.eqTarget != null ? a.eqTarget : n.equip, ml = UI.monthsLeft(n);
+    const row = (k, v, cls) => (Math.abs(v) >= 0.05 ? '<span>' + k + '</span><b class="' + (cls || '') + '">' + (v > 0 ? '+' : '−') + Math.abs(v).toFixed(1) + '</b>' : '');
+    return '<b>Kit ' + Math.round(n.equip * 100) + '%</b>' + (Math.abs(tg - n.equip) > 0.01 ? ', heading for <b>' + Math.round(tg * 100) + '%</b>' : '') + '. It multiplies attack by ×' + n.equip.toFixed(2) + ' and defence by ×' + Math.pow(n.equip, 0.7).toFixed(2) + '.' +
+      '<hr><b>Arsenal ' + Math.round(ars) + '</b> = ' + (ars / need).toFixed(1) + ' months of your army’s needs (' + need.toFixed(1) + ' a month; 24 months = kit 100%).' + (n.nwars ? (ml ? ' <span class="bad">At this rate it runs dry in about ' + ml + '.</span>' : ' <span class="good">The war is not draining it.</span>') : '') +
+      '<div class="kv"><span>Last month</span><b></b>' + row('Factories made', a.armsMade || 0, 'good') + row('Bought abroad', a.armsImp || 0, 'good') + row('Captured', a.lootM || 0, 'good') + row('Aged out (1/24)', -(a.arsAged || 0)) + row('Burned at war' + (n.nwars ? ' (' + (ID.Combat.POSTURE[n.posture] || {}).name + ')' : ''), -(a.burn || 0), 'bad') + row('Lost with the fallen', -(a.arsLost || 0), 'bad') + row('Shells and bombs', -(a.shellsM || 0), 'bad') + '</div>' +
+      '<span class="dim">Arms are limited by your ' + (lim === 'factories' ? '<span class="warn">factories (' + cap.toFixed(1) + ' a month)</span>: build or repair them, or buy from friendly partners' : 'arms budget (' + paid.toFixed(1) + ' a month): raise its share') + '. At war the army burns about ' + Math.round(E.ARS.war * 100) + '% of a month’s needs each month it fights (offensive ×1.3, dig in ×0.7), plus the kit of every soldier lost; build the arsenal up before you need it.</span>';
   };
   UI.topTips = function () {
     const G = UI.G, n = P(), I = ID.ideo(n); const st = (id, html) => { const el = document.getElementById('st-' + id); if (el) el.setAttribute('data-tip', html); };
@@ -378,6 +381,7 @@
       const op = ID.op(G, n.id, me.id);
       rows.push(['Their opinion of you', '<span class="' + (op > 15 ? 'good' : op < -15 ? 'bad' : '') + '">' + Math.round(op) + '</span>', 'Driven by ideological distance, treaties, your threat and what you have done to them.']);
       rows.push(['Troops', ID.fmtPop(n.troops)]); rows.push(['Stability', Math.round(clamp(n.stab, 0, 100)) + '']);
+      if (ID.atWar(G, me.id, n.id)) { const ml = UI.monthsLeft(n); rows.push(['Their kit', '<span class="' + (n.equip < me.equip - 0.05 ? 'good' : n.equip > me.equip + 0.05 ? 'bad' : '') + '">' + Math.round(n.equip * 100) + '%</span>' + (ml ? ' <span class="dim">· dry in ' + ml + '</span>' : ''), '<h5>Their kit ' + Math.round(n.equip * 100) + '% against your ' + Math.round(me.equip * 100) + '%</h5>Kit multiplies attack and, a little less, defence: on equal numbers that is ×' + (me.equip / n.equip).toFixed(2) + ' in your favour when you attack them.' + (ml ? '<hr>Their arsenal runs dry in about ' + ml + ' at this rate. Keep them fighting, bomb their factories, take their cities.' : '')]); }
       h += UI.kv(rows);
       if (G.bld[i]) h += UI.bldCard(G, n, i, false);
       h += '<div class="acts">';
@@ -449,6 +453,7 @@
       let inc = 0; for (const a of G.attacks) if (a.to === n.id) inc += a.troops;
       if (inc > 1) add('<b>Under attack</b> by ' + ID.fmtPop(inc) + ' troops', 'mil', true);
       if (!G.attacks.some((a) => a.from === n.id) && n.troops > n.pop * n.mob * 0.6) add('<b>Troops idle</b> while at war', 'mil');
+      { const m = ID.Economy.monthsLeft(n); if (m < 9) add('<b>Arsenal running dry</b>: about ' + Math.max(0, Math.round(m)) + ' months of fighting left (kit ' + Math.round(n.equip * 100) + '%)', 'mil', m < 4); }
       if (n.equip < 0.8) add('<b>Short of kit</b>: equipment ' + Math.round(n.equip * 100) + '%, attack ×' + n.equip.toFixed(2) + ((n.a.armsPaid || 0) > (n.a.armsCap || 0) * 1.02 ? ' (factories are the limit)' : ''), 'mil', n.equip < 0.75);
     }
     if (n.a.wrecks) { const w = G.blist.find((i) => G.owner[i] === n.id && G.bld[i] && !G.hp[i] && !G.builds.some((q) => q.i === i)); if (w != null) add('<b>' + n.a.wrecks + ' wrecked building' + (n.a.wrecks > 1 ? 's' : '') + '</b>: rebuild at half price', null, false, 'goto', w); }

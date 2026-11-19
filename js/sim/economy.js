@@ -33,14 +33,39 @@
   E.ROUTE_K = 0.04; E.PORT_ROUTES = 3; E.OVERLAND = 0.35; E.FIT = 0.3; E.BLOC_FIT = 0.2; E.PLAN_TRADE = 0.4; E.PRIV_TRADE = 0.3; E.ARMS_K = 0.25; E.PLAN_ARMS = 1.2; E.IMPORT_SHARE = 0.25;
   /* Kit target from a month's arms money; fills the n.a.arms* figures the interface shows. */
   E.kitTarget = function (G, n, arms, routes) {
-    const aNeed = Math.max(1, n.troops * (G.stats.armsRef || 0.035)), armsCap = E.armsCap(n);
+    const aNeed = Math.max(1, E.army(n) * (G.stats.armsRef || 0.035)), armsCap = E.armsCap(n);
     const made = Math.min(arms, armsCap);
     let spare = 0; for (const r of routes || []) if (r.fit >= 1 && G.nations[r.o]) spare += G.nations[r.o].a.icSpare || 0;
     const impCap = Math.min(aNeed * E.IMPORT_SHARE, spare);
     const imp = n.laws.trade === 'autarky' ? 0 : Math.max(0, Math.min((arms - made) / 1.5, impCap));
-    const eq = clamp(0.62 + (made + imp) / aNeed * 0.38, 0.62, 1.35) - (n.a.shortage ? 0.1 : 0);
-    Object.assign(n.a, { eqTarget: eq, armsPaid: arms, armsNeed: aNeed, armsCap, armsMade: made, armsImp: imp, armsImpCap: impCap, armsWaste: Math.max(0, arms - made - imp * 1.5) });
+    const refill = (made + imp) * (n.a.dp && n.a.dp.equipRegen ? n.a.dp.equipRegen : 1) * (n.a.shortage ? 0.75 : 1), burn = E.warBurn(G, n, aNeed);
+    const eq = clamp(0.62 + 0.38 * Math.max(0, refill - burn) / aNeed, 0.62, 1.35); // where the arsenal settles if nothing changes
+    Object.assign(n.a, { eqTarget: eq, armsPaid: arms, armsNeed: aNeed, armsCap, armsMade: made, armsImp: imp, armsImpCap: impCap, armsWaste: Math.max(0, arms - made - imp * 1.5), refill, burn });
     return eq;
+  };
+
+  /* ---------------------------------------------------------------- the arsenal
+     A stockpile of equipment. Refilled each month by the arms the factories make (and imports); 1/24 of it ages out each
+     month; war burns it: about a month of the army's needs per month of active fighting (× posture), and the kit of every
+     soldier lost. Kit = 62% + 38% × arsenal ÷ (24 months of needs), at most 135%. Peacetime it settles where the old
+     equipment did; at war, unless the arms flow rises, it drains over about two years. */
+  E.ARS = { life: 24, war: 0.6, idle: 0.3, lossK: 0.25, loot: 0.03, shells: 0.3 };
+  E.POSTURE_BURN = { attack: 1.3, balanced: 1, defend: 0.7, depth: 0.9 };
+  E.active = (G, n) => G.attacks.some((a) => a.to && (a.from === n.id || a.to === n.id));
+  E.warBurn = (G, n, need) => (n.nwars ? need * E.ARS.war * (E.active(G, n) ? 1 : E.ARS.idle) * (E.POSTURE_BURN[n.posture] || 1) : 0);
+  E.army = (n) => (n.a.armyAvg != null ? n.a.armyAvg : n.troops); // army size, smoothed over about a year: a draft dilutes kit gradually
+  E.kitOf = (n, need) => clamp(0.62 + 0.38 * (n.ars || 0) / (E.ARS.life * Math.max(1, need)), 0.62, 1.35);
+  E.initArsenal = (G, n) => { if (n.ars == null) { const need = Math.max(1, n.troops * ((G.stats && G.stats.armsRef) || 0.035)); n.ars = Math.max(0, (n.equip - 0.62) / 0.38) * E.ARS.life * need; } };
+  /* Months of fighting the arsenal can carry at the present flow (Infinity if it is not falling). */
+  E.monthsLeft = (n) => { const net = (n.a.burn || 0) + (n.ars || 0) / E.ARS.life - (n.a.refill || 0); return net > 0.01 ? (n.ars || 0) / net : Infinity; };
+  E.arsenalMonth = function (G, n) {
+    E.initArsenal(G, n);
+    n.a.armyAvg = n.a.armyAvg == null ? n.troops : n.a.armyAvg + (n.troops - n.a.armyAvg) * 0.12;
+    const lost = n.troops > 0 ? n.ars * E.ARS.lossK * Math.min(0.5, (n.casM || 0) / n.troops) : 0; // the kit of the fallen
+    const aged = n.ars / E.ARS.life;
+    n.ars = Math.max(0, n.ars + (n.a.refill || 0) - aged - (n.a.burn || 0) - lost);
+    n.a.arsIn = n.a.refill || 0; n.a.arsAged = aged; n.a.arsLost = lost; n.a.lootM = n.a.loot || 0; n.a.loot = 0; n.a.shellsM = n.a.shells || 0; n.a.shells = 0;
+    n.equip = E.kitOf(n, n.a.armsNeed);
   };
   /* After a budget change: show the new target now rather than next month. */
   E.kitNow = (G, n) => { if (G && n.rev != null && n.a.armsNeed) E.kitTarget(G, n, Math.max(0, n.rev) * n.budget.arms, n.a.routes); };
@@ -336,9 +361,9 @@
     /* equipment: arms money buys kit only as fast as the factories can make it (more for a planned economy); the rest
        can be bought abroad at 1.5× from friendly trade partners with spare capacity, up to a quarter of need. 100% means
        as much kit per soldier as the world's average army, so it is an arms race: a bigger army or a smaller industry dilutes it */
-    const eq = E.kitTarget(G, n, arms, routes);
+    E.kitTarget(G, n, arms, routes);
     n.a.icSpare = Math.max(0, n.a.armsCap - n.a.armsMade);
-    n.equip += (eq - n.equip) * 0.1 * (eq > n.equip && n.a.dp ? n.a.dp.equipRegen : 1);
+    E.arsenalMonth(G, n);
 
     /* research */
     let pts = science * (1 + pressLaw.sci + (I.flags.sciBonus || 0) - (I.flags.sciPenalty || 0)) * (0.7 + n.fs.intelligentsia / 160) * (1 + ID.mod(n, 'sci'));
