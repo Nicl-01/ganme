@@ -510,7 +510,7 @@
     ID.Game.updateStats(G);
     for (const n of nats) { const g = n.gold; ID.Economy.month(G, n); n.gold = g; n.debt = 0; n.sci = 0; }
     G.stats.gdppcRef0 = 0; ID.Game.updateStats(G);
-    for (const n of nats) { n.ls = 50; ID.Economy.month(G, n); n.gold = n.gold - n.net; n.debt = 0; n.sci = 0; n.lsPrev = n.ls; n.a.lsHist = []; n.a.gdpHist = []; ID.Politics.initNation(G, n); }
+    for (const n of nats) { n.ls = 50; ID.Economy.month(G, n); n.gold = n.gold - n.net; n.debt = 0; n.sci = 0; n.lsPrev = n.ls; n.a.lsHist = []; n.a.gdpHist = []; if (n.a.eqTarget != null) n.equip = n.a.eqTarget; ID.Politics.initNation(G, n); } // start at the kit the country can actually afford
     G.era = ID.eraOf(G.tick); G.startTick = G.tick;
     for (const n of nats) n.a.startIdeo = n.ideo;
     if (sc) for (const n of nats) ID.Focus.applySpirits(G, n);

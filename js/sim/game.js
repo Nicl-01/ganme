@@ -33,7 +33,8 @@
       vals.ind.push([n.id, n.ind]); vals.gdp.push([n.id, n.gdp]); vals.power.push([n.id, pw]); vals.gdppc.push([n.id, n.gdppc || 0]); vals.pop.push([n.id, n.pop]); vals.tiles.push([n.id, n.tiles]); vals.score.push([n.id, n.a.score]);
       pcs.push((n.gdp / Math.max(1, n.pop)) * 1000);
     }
-    st.armsRef = men > 0 ? Math.max(0.02, kit / men) : 0.035; // the world's kit per soldier: equipment 100% means this much
+    const ref = men > 0 ? Math.max(0.02, kit / men) : 0.035; // the world's kit per soldier: equipment 100% means this much
+    st.armsRef = st.armsRef ? st.armsRef + (ref - st.armsRef) * 0.05 : ref; // it drifts slowly, so your own changes are what you see
     st.rank = {};
     for (const k in vals) { vals[k].sort((a, b) => b[1] - a[1]); st.rank[k] = {}; vals[k].forEach((v, i) => { st.rank[k][v[0]] = i + 1; }); }
     st.top = vals.power.length ? vals.power[0][0] : 0;

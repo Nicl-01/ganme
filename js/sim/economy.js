@@ -31,6 +31,19 @@
   /* The ideological market. fit: how much a trade route is worth between two systems, from their ideological
      affinity (−60 … +45) and a shared bloc. */
   E.ROUTE_K = 0.04; E.PORT_ROUTES = 3; E.OVERLAND = 0.35; E.FIT = 0.3; E.BLOC_FIT = 0.2; E.PLAN_TRADE = 0.4; E.PRIV_TRADE = 0.3; E.ARMS_K = 0.25; E.PLAN_ARMS = 1.2; E.IMPORT_SHARE = 0.25;
+  /* Kit target from a month's arms money; fills the n.a.arms* figures the interface shows. */
+  E.kitTarget = function (G, n, arms, routes) {
+    const aNeed = Math.max(1, n.troops * (G.stats.armsRef || 0.035)), armsCap = E.armsCap(n);
+    const made = Math.min(arms, armsCap);
+    let spare = 0; for (const r of routes || []) if (r.fit >= 1 && G.nations[r.o]) spare += G.nations[r.o].a.icSpare || 0;
+    const impCap = Math.min(aNeed * E.IMPORT_SHARE, spare);
+    const imp = n.laws.trade === 'autarky' ? 0 : Math.max(0, Math.min((arms - made) / 1.5, impCap));
+    const eq = clamp(0.62 + (made + imp) / aNeed * 0.38, 0.62, 1.35) - (n.a.shortage ? 0.1 : 0);
+    Object.assign(n.a, { eqTarget: eq, armsPaid: arms, armsNeed: aNeed, armsCap, armsMade: made, armsImp: imp, armsImpCap: impCap, armsWaste: Math.max(0, arms - made - imp * 1.5) });
+    return eq;
+  };
+  /* After a budget change: show the new target now rather than next month. */
+  E.kitNow = (G, n) => { if (G && n.rev != null && n.a.armsNeed) E.kitTarget(G, n, Math.max(0, n.rev) * n.budget.arms, n.a.routes); };
   E.fit = (G, n, o) => 1 + E.FIT * clamp(ID.ideoAffinity(n.ideo, o.ideo) / 45, -1, 1) + (ID.sameBloc(G, n.id, o.id) ? E.BLOC_FIT : 0);
   E.armsCap = (n) => (n.a.ic || 0) * E.ARMS_K * (ID.ideo(n).econ.model === 'plan' || ID.ideo(n).econ.model === 'cyber' ? E.PLAN_ARMS : 1);
 
@@ -104,6 +117,7 @@
     else if (n.a.threatened) { b.arms += 0.07; b.welfare -= 0.03; }
     if (n.famine) { b.welfare += 0.05; b.science -= 0.03; }
     if (n.fs.workers < 45) { b.welfare += 0.05; b.arms -= 0.02; }
+    const mo = n.a.mot || {}; for (const c of CATS) b[c] += mo[c] || 0; // motions the congress has passed stay passed
     for (const c of CATS) b[c] = clamp(b[c], 0, 0.45);
     n.budget = b; n.motions = 0;
   };
@@ -113,6 +127,8 @@
     if (n.budget[from] < 0.04) return 'Nothing left to move from there.';
     if (to === 'security' && ID.ideo(n).family === 'anarchist') return 'The federation will not fund a security apparatus.';
     n.auth -= 10; n.motions++; n.budget[from] -= 0.04; n.budget[to] = clamp(n.budget[to] + 0.04, 0, 0.5);
+    const mo = n.a.mot || (n.a.mot = {}); mo[from] = (mo[from] || 0) - 0.04; mo[to] = (mo[to] || 0) + 0.04;
+    E.kitNow(G, n); // the new target shows at once
     return '';
   };
 
@@ -320,15 +336,9 @@
     /* equipment: arms money buys kit only as fast as the factories can make it (more for a planned economy); the rest
        can be bought abroad at 1.5× from friendly trade partners with spare capacity, up to a quarter of need. 100% means
        as much kit per soldier as the world's average army, so it is an arms race: a bigger army or a smaller industry dilutes it */
-    const aNeed = Math.max(1, n.troops * (G.stats.armsRef || 0.035)), armsCap = E.armsCap(n);
-    const made = Math.min(arms, armsCap);
-    let spare = 0; for (const r of routes) if (r.fit >= 1) spare += G.nations[r.o].a.icSpare || 0;
-    const impCap = Math.min(aNeed * E.IMPORT_SHARE, spare);
-    const imp = n.laws.trade === 'autarky' ? 0 : Math.min((arms - made) / 1.5, impCap);
-    n.a.icSpare = Math.max(0, armsCap - made);
-    const eq = clamp(0.62 + (made + imp) / aNeed * 0.38, 0.62, 1.35) - (n.a.shortage ? 0.1 : 0);
+    const eq = E.kitTarget(G, n, arms, routes);
+    n.a.icSpare = Math.max(0, n.a.armsCap - n.a.armsMade);
     n.equip += (eq - n.equip) * 0.1 * (eq > n.equip && n.a.dp ? n.a.dp.equipRegen : 1);
-    n.a.eqTarget = eq; n.a.armsPaid = arms; n.a.armsNeed = aNeed; n.a.armsCap = armsCap; n.a.armsMade = made; n.a.armsImp = imp; n.a.armsImpCap = impCap; n.a.armsWaste = Math.max(0, arms - made - imp * 1.5);
 
     /* research */
     let pts = science * (1 + pressLaw.sci + (I.flags.sciBonus || 0) - (I.flags.sciPenalty || 0)) * (0.7 + n.fs.intelligentsia / 160) * (1 + ID.mod(n, 'sci'));

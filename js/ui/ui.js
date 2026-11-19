@@ -175,7 +175,7 @@
   ins.tax = (v) => { P().tax = v; };
   ins.rent = (v) => { P().rent = v; };
   ins.pact = (v) => { P().pact = v; };
-  ins.budget = (v, el) => { ID.Economy.setBudget(P(), el.dataset.k, v / 100); };
+  ins.budget = (v, el) => { ID.Economy.setBudget(P(), el.dataset.k, v / 100); ID.Economy.kitNow(UI.G, P()); UI.renderTop(true); };
   ins.vol = (v) => { UI.settings.vol = v / 100; ID.Audio.setVol(UI.settings.vol, UI.settings.muted); UI.saveSettings(); };
   ins.mvol = (v) => { UI.settings.music = v / 100; ID.Music.set(UI.settings.music, UI.settings.musicOn); UI.saveSettings(); };
 
@@ -228,7 +228,8 @@
     set('sv-ind', ID.fmt(n.ind) + '<small' + (n.a.wrecks ? ' class="bad">' + n.a.wrecks + ' wrecked' : '>' + n.nb[B.FACTORY] + ' works') + '</small>');
     set('sv-food', '<span class="' + (n.foodBal < 0.93 ? 'bad' : n.foodBal < 1 ? 'warn' : '') + '">' + Math.round(n.foodBal * 100) + '%</span>');
     set('sv-pop', ID.fmtPop(n.pop));
-    set('sv-troops', ID.fmtPop(n.troops) + '<small class="' + (n.equip < 0.85 ? 'bad' : n.equip < 1 ? 'warn' : 'good') + '">kit ' + Math.round(n.equip * 100) + '%</small>');
+    const kt = n.a.eqTarget != null ? n.a.eqTarget : n.equip;
+    set('sv-troops', ID.fmtPop(n.troops) + '<small class="' + (n.equip < 0.7 || (n.nwars && n.equip < 0.8) ? 'bad' : n.equip > 1.05 ? 'good' : '') + '">kit ' + Math.round(n.equip * 100) + '%' + (kt > n.equip + 0.015 ? ' ▲' : kt < n.equip - 0.015 ? ' ▼' : '') + '</small>');
     const cls = (v) => (v < 30 ? 'bad' : v < 45 ? 'warn' : '');
     const arrow = (cur, tgt) => (tgt > cur + 1.5 ? '<small class="good">▲</small>' : tgt < cur - 1.5 ? '<small class="bad">▼</small>' : '');
     set('sv-stab', '<span class="' + cls(n.stab) + '">' + Math.round(clamp(n.stab, 0, 100)) + '</span>' + arrow(n.stab, n.a.stabTgt != null ? n.a.stabTgt : n.stab));
@@ -245,7 +246,8 @@
   UI.kitText = function (n) {
     const need = n.a.armsNeed || 1, made = n.a.armsMade || 0, imp = n.a.armsImp || 0, cap = n.a.armsCap || 0, paid = n.a.armsPaid || 0;
     const lim = paid > cap * 1.02 ? 'factories' : 'budget';
-    return '<b>Kit ' + Math.round(n.equip * 100) + '%</b> multiplies attack by ×' + n.equip.toFixed(2) + ' and defence by ×' + Math.pow(n.equip, 0.7).toFixed(2) + '. 100% is the world’s average kit per soldier.' +
+    const tg = n.a.eqTarget != null ? n.a.eqTarget : n.equip;
+    return '<b>Kit ' + Math.round(n.equip * 100) + '%</b>' + (Math.abs(tg - n.equip) > 0.01 ? ', heading for <b>' + Math.round(tg * 100) + '%</b>' : '') + '. It multiplies attack by ×' + n.equip.toFixed(2) + ' and defence by ×' + Math.pow(n.equip, 0.7).toFixed(2) + '. 100% is the world’s average kit per soldier.' +
       '<div class="kv"><span>Your soldiers need</span><b>' + need.toFixed(1) + '/mo</b><span>Your factories make</span><b class="' + (made < need ? 'bad' : 'good') + '">' + made.toFixed(1) + '/mo</b>' + (imp > 0.05 ? '<span>Bought abroad</span><b>' + imp.toFixed(1) + '/mo</b>' : '') + '<span>Limited by</span><b>' + (lim === 'factories' ? '<span class="warn">factories (' + cap.toFixed(1) + ')</span>' : 'arms budget (' + paid.toFixed(1) + ')') + '</b></div>' +
       '<span class="dim">Kit heads for 62% + 38% × (made + bought) ÷ need, at most 135%, a tenth of the way each month. ' + (lim === 'factories' ? 'More arms money is wasted: build factories, or buy from friendly partners with spare capacity (up to a quarter of need, at 1.5× the price).' : 'Raise the arms share of the budget, or keep fewer men under arms.') + '</span>';
   };
@@ -447,7 +449,7 @@
       let inc = 0; for (const a of G.attacks) if (a.to === n.id) inc += a.troops;
       if (inc > 1) add('<b>Under attack</b> by ' + ID.fmtPop(inc) + ' troops', 'mil', true);
       if (!G.attacks.some((a) => a.from === n.id) && n.troops > n.pop * n.mob * 0.6) add('<b>Troops idle</b> while at war', 'mil');
-      if (n.equip < 0.85) add('<b>Short of kit</b>: equipment ' + Math.round(n.equip * 100) + '%, attack ×' + n.equip.toFixed(2) + ((n.a.armsPaid || 0) > (n.a.armsCap || 0) * 1.02 ? ' (factories are the limit)' : ''), 'mil', n.equip < 0.75);
+      if (n.equip < 0.8) add('<b>Short of kit</b>: equipment ' + Math.round(n.equip * 100) + '%, attack ×' + n.equip.toFixed(2) + ((n.a.armsPaid || 0) > (n.a.armsCap || 0) * 1.02 ? ' (factories are the limit)' : ''), 'mil', n.equip < 0.75);
     }
     if (n.a.wrecks) { const w = G.blist.find((i) => G.owner[i] === n.id && G.bld[i] && !G.hp[i] && !G.builds.some((q) => q.i === i)); if (w != null) add('<b>' + n.a.wrecks + ' wrecked building' + (n.a.wrecks > 1 ? 's' : '') + '</b>: rebuild at half price', null, false, 'goto', w); }
     if (G.wildB && G.wildB[n.id] > 0 && !G.attacks.some((a) => a.from === n.id && a.to === 0) && n.troops > n.pop * n.mob * 0.5) add('<b>Unclaimed land</b> on your frontier: expand', 'mil', false, 'expandHint', 0);

@@ -67,7 +67,7 @@
     }
 
     /* kit and industry */
-    if (n.equip < (n.nwars ? 0.88 : 0.8)) {
+    if (n.equip < (n.nwars ? 0.85 : 0.7)) {
       const fac = (n.a.armsPaid || 0) > (n.a.armsCap || 0) * 1.02;
       add(n.nwars ? 66 : 34, 'The army is short of kit (' + pct(n.equip) + ')', 'Every attack and every defence is multiplied by it. ' + (fac ? 'Your factories cannot make more than ' + (n.a.armsCap || 0).toFixed(1) + ' gold of arms a month: the rest of the arms budget is wasted. Build or repair factories, buy from friendly partners, or keep fewer men under arms.' : 'The arms budget pays ' + (n.a.armsPaid || 0).toFixed(1) + ' a month against a need of ' + (n.a.armsNeed || 0).toFixed(1) + '. Raise its share, or keep fewer men under arms.'), [go('Economy', 'eco'), go('War', 'mil')]);
     }
