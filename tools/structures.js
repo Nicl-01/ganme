@@ -81,6 +81,25 @@ ok(n.a.armsMade <= n.a.armsCap + 1e-9 && near(n.a.armsCap, (n.a.ic || 0) * ID.Ec
   ok(v.ars < 1000 && n.ars > mine, 'taking an enemy factory or city captures part of their arsenal (' + Math.round(n.ars - mine) + ')');
 }
 
+/* cities */
+{
+  const Ct = ID.Cities; Ct.assign(G);
+  const us = Ct.units(G, n), sum = us.reduce((t, u) => t + u.share, 0);
+  ok(us.length >= 2 && Math.abs(sum - 1) < 1e-9 && us[us.length - 1].share <= us[0].share, 'every city and the countryside has a voice, adding to 100% (' + us.length + ' units)');
+  ok(us.some((u) => u.i === n.capital) && us.find((u) => u.i === n.capital).w === 3 * Ct.CITY_VOICE * G.hp[n.capital] / 100, 'the capital counts triple');
+  const rival = ID.IDEO_LIST.find((I) => I.id !== n.ideo && ID.IDEOLOGIES[I.id]).id;
+  for (const u of us) { u.r.lean = rival; u.r.str = 90; }
+  const mv = Ct.movement(G, n); ok(mv.ideo === rival && mv.share > 0.99, 'when every voice backs one movement at strength 90, the tilt is 100%');
+  for (const u of us) u.r.str = Ct.RISE; ok(!Ct.movement(G, n).ideo, 'at strength ' + Ct.RISE + ' no one has joined a rising yet');
+  for (const u of us) u.r.str = 70;
+  const big = us.find((u) => u.i >= 0); n.auth = 100; n.gold = 1e5; n.laws.security = 'police';
+  const s0 = big.r.str; ok(Ct.act(G, n, big.key, 'crack') === '' && big.r.str < s0 && /Possible again/.test(Ct.block(G, n, big.key, 'crack')), 'a crackdown cuts the lean and waits a year');
+  const d0 = n.drift[rival]; const u2 = us.find((u) => u !== big && u.r.str >= 20);
+  if (u2) { Ct.act(G, n, u2.key, 'concede'); ok(n.drift[rival] == null ? true : n.drift[rival] > (d0 || 0), 'a concession calms the city and moves the country toward it'); }
+  const rg = Ct.rising(G, n, rival); ok(rg.provs.length > 0 && rg.names.length > 0, 'a rising names its cities (' + Ct.list(rg.names) + ') and takes their provinces');
+  for (const u of us) { u.r.lean = null; u.r.str = 0; }
+}
+
 /* the atomic programme */
 const E = ID.Economy, at = E.atom(n);
 n.tech.mil = 5; ok(/technology 6/.test(E.atomBlock(G, n, 'atom')), 'no programme before military technology 6');
@@ -119,9 +138,10 @@ ok(dt > da, 'the thermonuclear bomb kills a larger share than the atomic one');
 ID.Combat.updateSupply(G); // settle the pockets the tests above left, as loading does
 const str = ID.Game.save(G), G2 = ID.Game.load(str);
 ok(G2.blist.every((i) => G2.hp[i] === G.hp[i]) && G2.blist.length === G.blist.length, 'condition survives a save');
-const o = JSON.parse(str); delete o.hp; for (const k of o.nations) if (k) { delete k.atom; delete k.thermo; }
+const o = JSON.parse(str); delete o.hp; delete o.cty; o.prov.forEach((p, k) => { if (k % 3 === 0) { p[2] = 'liberal'; p[3] = 55; } }); for (const k of o.nations) if (k) { delete k.atom; delete k.thermo; }
 const G3 = ID.Game.load(o);
 ok(G3.blist.every((i) => G3.hp[i] === 100), 'an old save loads with every building whole');
+ok(Object.keys(G3.cty || {}).length > 0 && Object.values(G3.cty).some((r) => r.lean === 'liberal'), 'an old save gives its cities the old provincial opposition');
 months(G3, 2);
 ok(ID.alive(G3).length > 0, 'an old save runs on');
 

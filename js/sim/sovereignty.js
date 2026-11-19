@@ -380,7 +380,7 @@
     if (!R.tiles) { R.alive = false; return null; }
     let pop = 0, troops = 0;
     for (const k in losers) { const L = G.nations[+k], b = losers[k]; const sh = clamp(1 - L.popLand / Math.max(1, b.land), 0, 0.9); const mv = b.pop * sh; L.pop -= mv; pop += mv; const tm = b.troops * clamp(1 - L.tiles / Math.max(1, b.tiles), 0, 0.6) * 0.5; L.troops -= tm; troops += tm; }
-    let big = null; for (const p of o.provs) { const Pr = G.provinces[p]; if (G.owner[Pr.center] === R.id) { Pr.core = R.id; Pr.owner = R.id; Pr.integ = 90; Pr.unrest = 15; Pr.oppStr = 0; Pr.opp = null; if (!big || Pr.tiles > big.tiles) big = Pr; } }
+    let big = null; for (const p of o.provs) { const Pr = G.provinces[p]; if (G.owner[Pr.center] === R.id) { Pr.core = R.id; Pr.owner = R.id; Pr.integ = 90; Pr.unrest = 15; if (!big || Pr.tiles > big.tiles) big = Pr; } }
     R.capital = big ? big.center : -1; if (R.capital < 0) for (let i = 0; i < G.N; i++) if (G.owner[i] === R.id) { R.capital = i; break; }
     if (!G.bld[R.capital]) ID.placeBuilding(G, R.capital, ID.B.CITY);
     R.pop = Math.max(pop, R.popLand * 0.4); R.laws = fresh ? {} : R.laws; R.mob = 0.06;

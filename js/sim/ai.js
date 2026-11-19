@@ -436,6 +436,7 @@
     ID.Combat.launch(G, n.id, 0, n.troops * share, 'advance');
   }
   AI.month = function (G, n) {
+    if (ID.Cities) ID.Cities.aiMonth(G, n);
     threats(G, n);
     expand(G, n);
     budget(G, n);

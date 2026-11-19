@@ -74,7 +74,7 @@
     if (!o && mode !== 'terrain') { c = (x - y) % 5 === 0 || (x + y) % 11 === 0 ? [222, 213, 190] : [240, 233, 214]; }
     else if (mode === 'terrain') c = TERR[t].col;
     else if (mode === 'stability') { const P = G.provinces[G.prov[i]]; c = ramp(P.unrest); }
-    else if (mode === 'opposition') { const P = G.provinces[G.prov[i]]; c = P.opp ? mix([214, 208, 190], ID.IDEOLOGIES[P.opp].color, clamp(P.oppStr / 85, 0.06, 1)) : [214, 208, 190]; }
+    else if (mode === 'opposition') { const r = ID.Cities.ofTile(G, i), n = G.nations[o]; c = r && r.lean && r.lean !== n.ideo ? mix([214, 208, 190], ID.IDEOLOGIES[r.lean].color, clamp(r.str / 85, 0.06, 1)) : [214, 208, 190]; }
     else if (mode === 'supply') { const s = G.cut[i]; c = mix(s === 0 ? [140, 168, 110] : s === 2 ? [214, 178, 84] : [196, 60, 44], natCol[o] || PAPER, 0.25); }
     else c = natCol[o] || PAPER;
     // printed terrain texture
@@ -337,6 +337,11 @@
           continue;
         }
         glyph(G.bld[i], X, Y, bs, o === G.player ? css(RED) : paper, o === G.player ? paper : ink);
+        if (G.bld[i] === B.CITY && z >= 4.5 && G.cty && G.cty[i]) { // the city's name, and the colour of its lean in the Cities map
+          const r = G.cty[i], n = G.nations[o], lean = R.mode === 'opposition' && r.lean && n && r.lean !== n.ideo && r.str >= 20;
+          ctx.font = '700 ' + Math.round(clamp(z * 1.6, 11, 15)) + 'px "Barlow Condensed", sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'top'; ctx.lineWidth = 3; ctx.strokeStyle = css(PAPER, 0.85);
+          const t = r.nm + (lean ? ' · ' + Math.round(r.str) : ''); ctx.strokeText(t, X, Y + bs * 0.8 + (h < 100 ? 5 : 0)); ctx.fillStyle = lean ? css(ID.IDEOLOGIES[r.lean].color) : css(INK, 0.85); ctx.fillText(t, X, Y + bs * 0.8 + (h < 100 ? 5 : 0)); ctx.textBaseline = 'middle';
+        }
         if (h < 100) { // condition bar under a damaged building
           const w = bs * 1.2, y0 = Y + bs * 0.75;
           ctx.fillStyle = css(INK, 0.75); ctx.fillRect(X - w / 2 - 1, y0 - 1, w + 2, 5);

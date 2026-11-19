@@ -18,14 +18,7 @@
   const lsUp = (n) => (n.ls || 0) - (n.lsPrev != null ? n.lsPrev : n.ls);
   const hostileNb = (G, n) => { const out = []; for (const k in G.border[n.id] || {}) { const o = G.nations[+k]; if (o && o.alive && ID.ideo(o).family !== ID.ideo(n).family && ID.op(G, n.id, o.id) < 10) out.push(o); } return out; };
   /* grow a movement for ideology `ideo` in some of t's provinces */
-  const seed = (G, t, ideo, amt, count, sponsor) => {
-    const mine = []; for (let p = 1; p < G.provinces.length; p++) if (G.provinces[p].owner === t.id) mine.push(G.provinces[p]);
-    for (let c = 0; c < count && mine.length; c++) {
-      const Pr = G.rng.pick(mine);
-      if (Pr.opp !== ideo && (Pr.oppStr < 35 || G.rng.chance(0.3))) { Pr.opp = ideo; Pr.oppStr = Math.max(Pr.oppStr * 0.5, 6); }
-      if (Pr.opp === ideo) { Pr.oppStr = clamp(Pr.oppStr + amt, 0, 100); Pr.unrest = clamp(Pr.unrest + amt * 0.4, 0, 100); if (sponsor) Pr.sponsor = sponsor; }
-    }
-  };
+  const seed = (G, t, ideo, amt, count, sponsor) => ID.Cities.agitate(G, t, ideo, amt, sponsor, { count, take: 35, floor: 6, unrest: 0.4 });
   ID.docSeed = seed;
   /* an emergency draft: a share of the population, but never past 130% of the mobilisation ceiling */
   const draft = (G, n, share, equipHit) => { const add = Math.max(0, Math.min(n.pop * share, n.pop * ID.maxMob(n) * 1.3 - n.troops)); n.troops += add; if (equipHit && add > 0) n.equip = Math.max(0.5, n.equip - equipHit); return add; };
@@ -74,9 +67,9 @@
     order: { key: 'rise_call', name: 'Call the workers to rise', gold: 70, cd: 150, r: 12, range: 30,
       desc: 'Agitators, money and rifles behind the enemy front. In every enemy province within reach your movement grows sharply, and the garrison has more to worry about than you.',
       run: (G, n, Dn, tile) => {
-        const W = G.W, x0 = tile % W, y0 = (tile / W) | 0; let k = 0;
-        for (let p = 1; p < G.provinces.length; p++) { const Pr = G.provinces[p]; if (Pr.owner !== Dn.id) continue; if ((Pr.cx - x0) * (Pr.cx - x0) + (Pr.cy - y0) * (Pr.cy - y0) > 30 * 30) continue; if (Pr.opp !== n.ideo) { Pr.opp = n.ideo; Pr.oppStr = Math.max(Pr.oppStr * 0.5, 10); } Pr.oppStr = clamp(Pr.oppStr + 25, 0, 100); Pr.unrest = clamp(Pr.unrest + 12, 0, 100); Pr.sponsor = n.id; k++; }
-        Dn.stab -= 2; return k ? k + ' enemy provinces stir for the revolution.' : 'No enemy provinces within reach.';
+        const W = G.W, x0 = tile % W, y0 = (tile / W) | 0;
+        const k = ID.Cities.agitate(G, Dn, n.ideo, 25, n.id, { near: { x: x0, y: y0, r: 30 }, take: 101, floor: 10, unrest: 0.5, fx: 1 });
+        Dn.stab -= 2; return k ? k + ' enemy cities stir for the revolution.' : 'No enemy cities within reach.';
       }, ai: (G, n) => true },
   };
 

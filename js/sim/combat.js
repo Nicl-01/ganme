@@ -263,7 +263,7 @@
       if (P.core === a.to) { dmul *= D.a.home * Dd.homeDef; if (G.prov[i] === capP) dmul *= Dd.capitalDef; } else if (P.core === a.from) amul *= 1.15; else dmul *= 0.85;
       if (P.core !== a.from) amul *= A.a.abroad;
       if (tr.rough) { amul *= A.a.rough; dmul *= D.a.rough * Dd.roughDef; lossMul *= Ad.roughLoss; }
-      if (P.opp && P.oppStr > 30 && ID.ideo(A).flags.liberator && ID.IDEOLOGIES[P.opp].family === ID.ideo(A).family) amul *= 1.2;
+      if (ID.ideo(A).flags.liberator) { const cu = ID.Cities.ofProv(G, P); if (cu && cu.lean && cu.str > 30 && ID.IDEOLOGIES[cu.lean].family === ID.ideo(A).family) amul *= 1.2; } // the city welcomes them
       const cutT = G.cut[i] === 1;
       let la = dd * tdef * (dmul / amul) * lossMul * alossK * (cutT ? cutK : 1);
       if (a.amphib > 0) { la *= 1.3; a.amphib--; }
@@ -511,7 +511,7 @@
       if (core) {
         if (v) { hit[o] = (hit[o] || 0) + 1; people[o] = (people[o] || 0) + (G.rad[i] ? 0 : tr.pop) + (G.bld[i] === B.CITY ? 400 * G.hp[i] / 100 : 0); }
         if (G.bld[i]) { ID.removeBuilding(G, i); lost.bld++; }
-      } else if (G.bld[i]) { lost.dmg += ID.damage(G, i, Bk.ringDmg) > 0 ? 1 : 0; }
+      } else if (G.bld[i]) { lost.dmg += ID.damage(G, i, Bk.ringDmg) > 0 ? 1 : 0; ID.Cities.hit(G, i); }
       const rad = core ? Bk.rad : Bk.ringRad;
       if (rad && !G.rad[i]) {
         if (v) { v.popLand -= tr.pop; v.foodLand -= tr.food * (G.river[i] ? 1.25 : 1); }
@@ -628,7 +628,7 @@
       const i = y * W + x; if (G.owner[i] !== D.id) continue; tilesIn++;
       const b = G.bld[i]; if (!b || !G.hp[i]) continue;
       const got = ID.damage(G, i, ab.dmg[b] * airK * (0.8 + 0.4 * G.rng.next()));
-      if (got > 0) { hits[b]++; if (b === B.CITY) civ += 400 * (got / 100) * 0.02; }
+      if (got > 0) { hits[b]++; if (b === B.CITY) { civ += 400 * (got / 100) * 0.02; ID.Cities.hit(G, i); } }
     }
     const fx = G.fortCov[tile] === D.id ? ID.fortFx(G, tile) : null;
     const kill = Math.min(D.troops, D.troops * Math.min(ab.cap, ab.kill * tilesIn / Math.max(40, D.tiles)) * n.equip * (1 + 0.08 * n.tech.mil) * airK * (n.a.dp && n.a.dp.precision ? 1.35 : 1) * (n.flags.ld_fire ? 1.25 : 1) * (fx ? fx.shelter : 1) / Math.max(0.7, D.a.def || 1));

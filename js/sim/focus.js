@@ -371,11 +371,7 @@
   }
   function subvert(G, n, t, v) {
     if (!t || t === n || t.ideo === n.ideo) return;
-    for (let p = 1; p < G.provinces.length; p++) {
-      const Pr = G.provinces[p]; if (Pr.owner !== t.id || !G.rng.chance(0.6)) continue;
-      if (Pr.opp !== n.ideo && (Pr.oppStr < 30 || G.rng.chance(0.3))) { Pr.opp = n.ideo; Pr.oppStr = Math.max(Pr.oppStr * 0.6, 8); }
-      if (Pr.opp === n.ideo) { Pr.oppStr = clamp(Pr.oppStr + v, 0, 100); Pr.sponsor = n.id; }
-    }
+    ID.Cities.agitate(G, t, n.ideo, v, n.id, { chance: 0.6 });
     ID.addOpBoth(G, n.id, t.id, -8);
   }
   function protector(G, n) {

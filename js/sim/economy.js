@@ -251,7 +251,7 @@
     const oreF = clamp(0.78 + n.oreLand / Math.max(1, fac * 55), 0.78, 1.22);
     const ic = fac * 12 * (1 + 0.1 * n.tech.ind) * oreF;
     n.a.ic = ic; n.a.oreF = oreF;
-    let ind = (ic + ID.nbe(n, B.CITY) * 6) * labor * strike * (1 + (laborLaw.prod || 0) + (tradeLaw.ind || 0) + ID.mod(n, 'prod'));
+    let ind = (ic + (n.a.cityOut != null ? n.a.cityOut : ID.nbe(n, B.CITY) * 6)) * labor * strike * (1 + (laborLaw.prod || 0) + (tradeLaw.ind || 0) + ID.mod(n, 'prod'));
     if (e.rural) ind *= 0.85;
     n.ind = ind; n.agr = agr;
 

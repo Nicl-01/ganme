@@ -460,7 +460,7 @@
   function helpAbroad(G, n, amt) {
     const tg = []; for (const k in G.border[n.id] || {}) { const o = G.nations[+k]; if (o.alive && ID.op(G, n.id, o.id) < 10 && ID.ideo(o).family !== I(n).family) tg.push(o); }
     if (!tg.length) return; const t = G.rng.pick(tg);
-    for (let p = 1; p < G.provinces.length; p++) { const Pr = G.provinces[p]; if (Pr.owner === t.id && G.rng.chance(0.5)) { if (Pr.opp !== n.ideo && Pr.oppStr < 35) { Pr.opp = n.ideo; Pr.oppStr = Math.max(8, Pr.oppStr * 0.6); } if (Pr.opp === n.ideo) { Pr.oppStr = Math.min(100, Pr.oppStr + amt); Pr.sponsor = n.id; ID.fx(G, 'subvert', Pr.center, { col: I(n).color }); } } }
+    ID.Cities.agitate(G, t, n.ideo, amt, n.id, { chance: 0.5, take: 35, fx: 1 });
   }
   ev({ id: 'royal_wedding', title: 'A royal wedding', text: 'The heir is to marry. The court wants a spectacle; the treasury wants to know who is paying.', cd: 120,
     w: (n) => (is(n, 'absmon', 'conmon') ? 2.5 : 0),
@@ -638,7 +638,7 @@
   dec({ id: 'cultural_revolution', name: 'Bombard the headquarters', desc: 'Turn the masses loose on the party itself. Bureaucratisation is smashed. So is a great deal else.', cost: { auth: 40 }, cd: 120,
     ideos: ['mao'], fx: [['bureau', -40], ['dist', -10], ['fervor', 25], ['stab', -18], ['mod', 'sci', -0.4, 36, 'Schools closed'], ['sup', 'intelligentsia', -25], ['sup', 'bureaucracy', -20], ['unrest', 15], ['driftAll', -30]] });
   dec({ id: 'world_congress', name: 'Convene the International', desc: 'Summon every kindred party in the world and give them a line.', cost: { gold: 80, auth: 20 }, cd: 36,
-    ideos: ['trot', 'ml', 'council'], fx: [['fervor', 8], ['fn', (G, n) => { const fm = I(n).family; for (let p = 1; p < G.provinces.length; p++) { const Pr = G.provinces[p]; if (Pr.owner !== n.id && Pr.opp && ID.IDEOLOGIES[Pr.opp].family === fm) Pr.oppStr = Math.min(100, Pr.oppStr + 6); } }], ['opAll', -4], ['note', 'Kindred movements everywhere +6']] });
+    ideos: ['trot', 'ml', 'council'], fx: [['fervor', 8], ['fn', (G, n) => { const fm = I(n).family; for (const o of ID.alive(G)) if (o !== n) ID.Cities.each(G, o, (r) => { if (r.lean && ID.IDEOLOGIES[r.lean].family === fm) r.str = Math.min(100, r.str + 6); }); }], ['opAll', -4], ['note', 'Kindred movements everywhere +6']] });
   dec({ id: 'nationalise', name: 'Socialise a sector', desc: 'Take a commanding sector of the economy into public ownership. Four sectors in all: banking, heavy industry, transport, land.', cost: { auth: 25 }, cd: 30,
     ideos: ['demsoc'], vote: { workers: 15, capital: -40, intelligentsia: 5, military: -10 }, can: (n) => ((n.cnt.nationalized || 0) >= 4 ? 'Everything that can be socialised has been.' : ''),
     fx: [['cnt', 'nationalized', 1], ['sup', 'workers', 10], ['sup', 'capital', -16], ['conf', -12], ['mod', 'pow_capital', -0.15, 600, 'Socialised sector'], ['later', 4, 'nationalisation_backlash'], ['note', 'Revenue +4% permanently']] });

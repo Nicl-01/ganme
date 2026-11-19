@@ -214,7 +214,8 @@
   /* Hidden grievance bursts into the open. */
   P.burst = function (G, n, why) {
     const g = n.grievance; if (g < 20) return;
-    for (let p = 1; p < G.provinces.length; p++) { const Pr = G.provinces[p]; if (Pr.owner === n.id) { Pr.unrest = c100(Pr.unrest + g * 0.4); Pr.oppStr = c100(Pr.oppStr + g * 0.3); } }
+    for (let p = 1; p < G.provinces.length; p++) { const Pr = G.provinces[p]; if (Pr.owner === n.id) Pr.unrest = c100(Pr.unrest + g * 0.4); }
+    ID.Cities.each(G, n, (r) => { r.un = c100(r.un + g * 0.4); r.str = c100(r.str + g * 0.3); });
     n.grievance = g * 0.3; n.stab -= g * 0.12;
     ID.news(G, 'The lid comes off in ' + n.name + ': years of buried grievance surface after ' + why + '.', 'bad', n.id);
     ID.logGrief(n, G.tick, 'Suppressed grievance (' + Math.round(g) + ') burst into open unrest when ' + why + '.');
@@ -269,7 +270,7 @@
       ID.addOpBoth(G, n.id, s.id, 35);
       if (s.id === G.player) { ID.news(G, 'Your work abroad bears fruit: ' + n.name + ' joins the cause.', 'good', s.id); ID.sfx(G, 'good'); }
     }
-    for (let p = 1; p < G.provinces.length; p++) { const Pr = G.provinces[p]; if (Pr.owner === n.id) { if (Pr.opp === to) { Pr.opp = null; Pr.oppStr *= 0.2; } else Pr.oppStr *= 0.7; Pr.sponsor = 0; } }
+    ID.Cities.each(G, n, (r) => { if (r.lean === to) { r.lean = null; r.str *= 0.2; } else r.str *= 0.7; r.sp = 0; r.hl = ''; });
     P.power(G, n); ID.Combat.refresh(G, n);
   };
 
@@ -309,34 +310,24 @@
   };
 
   /* ---------------------------------------------------------------- uprisings and civil war */
-  P.movement = function (G, n) {
-    const share = {}; let best = null, bs = 0;
-    for (let p = 1; p < G.provinces.length; p++) {
-      const Pr = G.provinces[p]; if (Pr.owner !== n.id || !Pr.opp || Pr.opp === n.ideo || Pr.oppStr < 60) continue;
-      share[Pr.opp] = (share[Pr.opp] || 0) + (Pr.cnt[n.id] || 0);
-    }
-    for (const k in share) { const s = share[k] / Math.max(1, n.tiles); if (s > bs) { bs = s; best = k; } }
-    return { ideo: best, share: bs };
-  };
+  P.movement = (G, n) => ID.Cities.movement(G, n);
 
   P.uprising = function (G, n, ideo) {
-    const provs = []; let tiles = 0, sponsor = 0;
-    for (let p = 1; p < G.provinces.length; p++) {
-      const Pr = G.provinces[p];
-      if (Pr.owner === n.id && Pr.opp === ideo && Pr.oppStr >= 45) { provs.push(p); tiles += Pr.cnt[n.id] || 0; if (Pr.sponsor) sponsor = Pr.sponsor; }
-    }
-    const share = tiles / Math.max(1, n.tiles);
-    const I = ID.IDEOLOGIES[ideo];
-    ID.logGrief(n, G.tick, 'An uprising for ' + I.name + ' broke out across ' + Math.round(share * 100) + '% of the country.');
+    const Rg = ID.Cities.rising(G, n, ideo), provs = Rg.provs, sponsor = Rg.sponsor;
+    let tiles = 0; for (const p of provs) tiles += G.provinces[p].cnt[n.id] || 0;
+    const share = Math.max(tiles / Math.max(1, n.tiles), ID.Cities.tilt(G, n)[ideo] || 0);
+    const I = ID.IDEOLOGIES[ideo], where = ID.Cities.list(Rg.names);
+    n.a.riseWhere = where;
+    ID.logGrief(n, G.tick, 'An uprising for ' + I.name + ' broke out in ' + where + ' (' + Math.round(share * 100) + '% of the country).');
     if (share > 0.8 || (n.fs.military < 25 && share > 0.5 && !ID.ideo(n).flags.noCoup)) {
-      if (n.id === G.player) { ID.Game.defeat(G, 'revolution', { ideo, share }); return; }
+      if (n.id === G.player) { ID.Game.defeat(G, 'revolution', { ideo, share, where }); return; }
       P.changeIdeology(G, n, ideo, 'revolution', sponsor); return;
     }
     const loyal = n.fs.military >= 50 && n.fp.military >= 9 && share < 0.42 && !ID.ideo(n).flags.noCoup;
-    if (share < 0.1 || G.nations.length >= MAXN - 2 || (loyal && G.rng.chance(0.65))) { // too weak, or the army stands firm: crushed
-      if (loyal && share >= 0.1) { n.grievance = c100(n.grievance + 15); n.sm.intelligentsia -= 6; n.sm.workers -= 4; ID.logGrief(n, G.tick, 'The army crushed a rising for ' + I.name + '.'); ID.chron(G, 'rising', 'A rising for ' + I.name + ' in ' + n.name + ' is crushed by the army.', n.id); }
-      for (const p of provs) { G.provinces[p].oppStr *= 0.4; G.provinces[p].unrest = c100(G.provinces[p].unrest + 15); }
-      n.stab -= 4; ID.news(G, 'A rising for ' + I.name + ' in ' + n.name + ' is put down.', 'pol', n.id); return;
+    if (share < 0.1 || !provs.length || G.nations.length >= MAXN - 2 || (loyal && G.rng.chance(0.65))) { // too weak, or the army stands firm: crushed
+      if (loyal && share >= 0.1) { n.grievance = c100(n.grievance + 15); n.sm.intelligentsia -= 6; n.sm.workers -= 4; ID.logGrief(n, G.tick, 'The army crushed a rising for ' + I.name + ' in ' + where + '.'); ID.chron(G, 'rising', 'A rising for ' + I.name + ' in ' + where + ' (' + n.name + ') is crushed by the army.', n.id); }
+      for (const u of Rg.units) { u.r.str *= 0.4; u.r.un = c100(u.r.un + 15); }
+      n.stab -= 4; ID.news(G, 'A rising for ' + I.name + ' in ' + where + ' (' + n.name + ') is put down.', 'pol', n.id); return;
     }
     P.civilWar(G, n, ideo, provs, sponsor);
   };
@@ -351,7 +342,7 @@
     const popBefore = n.pop, landBefore = Math.max(1, n.popLand);
     for (let i = 0; i < G.N; i++) if (G.owner[i] === n.id && set.has(G.prov[i])) ID.setOwner(G, i, R.id, true);
     let big = null;
-    for (const p of provs) { const Pr = G.provinces[p]; Pr.core = R.id; Pr.owner = R.id; Pr.integ = 100; Pr.unrest = 10; Pr.oppStr = 0; Pr.opp = null; if (!big || Pr.tiles > big.tiles) big = Pr; }
+    for (const p of provs) { const Pr = G.provinces[p]; Pr.core = R.id; Pr.owner = R.id; Pr.integ = 100; Pr.unrest = 10; if (Pr.cu && G.cty && G.cty[Pr.cu]) { const r = G.cty[Pr.cu]; r.lean = null; r.str = 0; r.un = 10; r.sp = 0; r.o = R.id; } if (!big || Pr.tiles > big.tiles) big = Pr; }
     R.capital = G.owner[big.center] === R.id ? big.center : -1;
     if (R.capital < 0) for (let i = 0; i < G.N; i++) if (G.owner[i] === R.id) { R.capital = i; break; }
     const share = R.tiles / Math.max(1, before);
@@ -374,11 +365,12 @@
     P.initNation(G, R); R.a.unrest = 10;
     ID.Diplomacy.startWar(G, R, n, 'civil');
     n.stab = Math.max(10, n.stab - 6);
-    for (let p = 1; p < G.provinces.length; p++) { const Pr = G.provinces[p]; if (Pr.owner === n.id) Pr.oppStr *= 0.5; }
-    ID.news(G, 'CIVIL WAR in ' + n.name + ': ' + R.name + ' is proclaimed and holds ' + Math.round(share * 100) + '% of the country.', 'rev', n.id, R.id);
+    n.a.units = null; ID.Cities.each(G, n, (r) => { r.str *= 0.5; });
+    const where = n.a.riseWhere ? ' in ' + n.a.riseWhere : ''; n.a.riseWhere = '';
+    ID.news(G, 'CIVIL WAR in ' + n.name + ': ' + R.name + ' is proclaimed' + where + ' and holds ' + Math.round(share * 100) + '% of the country.', 'rev', n.id, R.id);
     ID.chron(G, 'civilwar', 'Civil war splits ' + n.name + '. The rebels proclaim ' + R.name + '.', n.id, R.id);
     if (ID.Press) ID.Press.civil(G, n, R, share, P.troubleOf(G, n), sponsor);
-    if (n.id === G.player || ID.isMajor(G, n)) { const why = P.troubleOf(G, n); ID.headline(G, { kicker: 'Civil war', title: n.base + ' divided', sub: (why && n.id !== G.player ? 'After ' + why + ', ' : '') + R.name + ' is proclaimed and holds ' + Math.round(share * 100) + '% of the country.', a: n.id, b: R.id, tone: 'rev' }); }
+    if (n.id === G.player || ID.isMajor(G, n)) { const why = P.troubleOf(G, n); ID.headline(G, { kicker: 'Civil war', title: n.base + ' divided', sub: (why && n.id !== G.player ? 'After ' + why + ', ' : '') + R.name + ' is proclaimed' + where + ' and holds ' + Math.round(share * 100) + '% of the country.', a: n.id, b: R.id, tone: 'rev' }); }
     for (const p of provs) ID.fx(G, 'revolt', G.provinces[p].center, { col: I.color });
     ID.sfx(G, 'revolt');
     if (!G.headless) G.dirtyAll = true;
@@ -400,7 +392,7 @@
     }
     if (revive || isNew) {
       R.alive = true; R.capital = Pr.center; R.nwars = 0; R.bloc = 0; R.ops = []; R.civil = 0; R.civilOf = 0;
-      const ideo = Pr.opp || (revive ? R.ideo : G.rng.pick(['liberal', 'natpop', 'agrarian', 'junta', 'socdem']));
+      const cu = ID.Cities.ofProv(G, Pr), ideo = (cu && cu.lean && cu.str >= 30 && cu.lean) || (revive ? R.ideo : G.rng.pick(['liberal', 'natpop', 'agrarian', 'junta', 'socdem']));
       R.laws = isNew ? {} : R.laws;
       ID.applyIdeology(G, R, ideo, true);
       R.stab = 55; R.legit = 60; R.fervor = 60; R.glory = 50; R.gold = 60; R.mob = Math.min(ID.maxMob(R), 0.09); R.tech = Object.assign({}, n.tech);
@@ -414,7 +406,7 @@
     const pshare = clamp(1 - n.popLand / landBefore, 0.01, 0.6);
     const moved = popBefore * pshare; n.pop -= moved; R.pop = (revive || isNew ? 0 : R.pop) + moved;
     if (revive || isNew) { R.troops = R.pop * R.mob; R.startTiles = R.peakTiles = R.tiles; ID.recalcBorders(G); P.initNation(G, R); }
-    Pr.core = R.id; Pr.owner = R.id; Pr.integ = 100; Pr.unrest = 12; Pr.oppStr = 0;
+    Pr.core = R.id; Pr.owner = R.id; Pr.integ = 100; Pr.unrest = 12;
     ID.addOpBoth(G, n.id, R.id, -30);
     n.stab -= 3; n.glory -= 4;
     ID.recalcBorders(G);
@@ -428,6 +420,7 @@
   };
 
   /* ---------------------------------------------------------------- provinces (all, monthly) */
+  P.classSupport = classSupport;
   function classSupport(n, ideo, urban) {
     const I = ID.IDEOLOGIES[ideo], fs = n.fs;
     switch (I.family) {
@@ -470,8 +463,9 @@
   P.provinces = function (G) {
     const diffP = ID.DIFFICULTY[G.difficulty];
     const waves = G.world.waves;
+    ID.Cities.month(G);
     // nation aggregates
-    for (const n of G.nations) if (n && n.alive) { n.a.uSum = 0; n.a.uT = 0; n.a.oSum = 0; n.a.noncore = 0; }
+    for (const n of G.nations) if (n && n.alive) { n.a.uSum = 0; n.a.uT = 0; n.a.noncore = 0; }
     for (let p = 1; p < G.provinces.length; p++) {
       const Pr = G.provinces[p]; const n = G.nations[Pr.owner]; if (!n || !n.alive) continue;
       const I = ID.ideo(n); const sec = ID.LAWS.security.opts[n.laws.security], press = ID.LAWS.press.opts[n.laws.press];
@@ -495,27 +489,13 @@
         const cn = G.nations[Pr.core];
         if (cn && (ID.ideo(cn).flags.partisans || (cn.a.dp && cn.a.dp.bleed > 1)) && (!cn.alive || ID.atWar(G, cn.id, n.id))) { const bl = 0.0015 * (cn.a.dp ? Math.max(1, cn.a.dp.bleed) : 1); u += 28; n.troops *= 1 - bl; n.casM += n.troops * bl; }
       }
+      const cu = ID.Cities.ofProv(G, Pr); if (cu) u = u * 0.6 + cu.un * 0.4; // a province follows the mood of its city
       Pr.unrest += (c100(u) - Pr.unrest) * 0.15;
-      // opposition movement
-      if (Pr.opp === n.ideo) { Pr.opp = null; Pr.oppStr *= 0.3; }
-      if (!Pr.opp || Pr.oppStr < 6) { if ((p + G.tick / 30) % 4 < 1 || !Pr.opp) { Pr.opp = P.pickOpp(G, n, Pr); Pr.opp = Pr.opp ? Pr.opp.id : null; Pr.sponsor = 0; } }
-      if (Pr.opp) {
-        const cs = classSupport(n, Pr.opp, Pr.urban);
-        let g = (Pr.unrest - 22) * 0.07 + (50 - cs) * 0.045 + press.spread * 1.2 - sec.repress * secEff * 1.6 + (n.trans > 0 ? 0.5 : 0) + ID.mod(n, 'opp');
-        const fam = ID.IDEOLOGIES[Pr.opp].family;
-        for (const w of waves) {
-          if (w.fam !== fam || w.src === n.id) continue;
-          const d = Math.hypot(Pr.cx - w.x, Pr.cy - w.y), rad = 50 + w.m * 9;
-          if (d < rad) g += 1.15 * w.str * (1 - w.m / 24) * (press.infl > 0 ? 1 + press.infl : 1 + press.infl * 0.8);
-        }
-        if (g > 0 && !n.ai) g *= diffP.crisis;
-        Pr.oppStr = c100(Pr.oppStr + g);
-      }
-      n.a.uSum += Pr.unrest * tiles; n.a.uT += tiles; n.a.oSum += Pr.oppStr * tiles;
+      n.a.uSum += Pr.unrest * tiles; n.a.uT += tiles;
       // secession of unintegrated land
       if (!isCore && Pr.unrest > 77 && Pr.integ < 50 && tiles > 20 && G.rng.chance(0.01 * (n.ai ? 1 : diffP.crisis)) && !(n.civil && G.nations[n.civil].alive) && !(n.civilOf && G.nations[n.civilOf] && G.nations[n.civilOf].alive)) P.secede(G, n, Pr);
     }
-    for (const n of G.nations) if (n && n.alive) { n.a.unrest = n.a.uT ? n.a.uSum / n.a.uT : 0; n.a.opp = n.a.uT ? n.a.oSum / n.a.uT : 0; n.a.noncoreShare = n.a.uT ? n.a.noncore / n.a.uT : 0; }
+    for (const n of G.nations) if (n && n.alive) { n.a.unrest = n.a.uT ? n.a.uSum / n.a.uT : 0; n.a.noncoreShare = n.a.uT ? n.a.noncore / n.a.uT : 0; }
     for (let k = waves.length - 1; k >= 0; k--) if (++waves[k].m > 24) waves.splice(k, 1);
   };
 
@@ -573,6 +553,7 @@
       let p = d.pressure(n, G); if (p > 0 && !n.ai) p *= diffP.crisis; if (p > 0 && n.ai) p *= 0.75;
       if (p > 0) p *= Math.max(0.2, 1 + ID.mod(n, 'driftK'));
       p += ID.mod(n, 'drift_' + d.to);
+      p += 0.5 * ((n.a.tilt && n.a.tilt[d.to]) || 0); // the cities that lean this way pull the country with them
       n.a.driftRate[d.to] = p;
       n.drift[d.to] = c100((n.drift[d.to] || 0) + p);
       if (n.id === G.player && !G.autoPlayer && n.drift[d.to] >= 70 && p > 0) { const da = n.a.driftArc || (n.a.driftArc = {}); if (!da[d.to] || G.tick - da[d.to] > 1440) { da[d.to] = G.tick; ID.Events.queue(G, n, 'arc_drift', { to: d.to, label: d.label, why: d.why }); } }
@@ -620,7 +601,7 @@
 
     /* uprising */
     if (!(n.civil && G.nations[n.civil] && G.nations[n.civil].alive) && !(n.civilOf && G.nations[n.civilOf] && G.nations[n.civilOf].alive) && n.age > 24 && !(n.a.civilEnd && G.tick - n.a.civilEnd < 2160)) {
-      const mv = P.movement(G, n); n.a.mv = mv;
+      n.a.tilt = ID.Cities.tilt(G, n); const mv = P.movement(G, n); n.a.mv = mv;
       if (mv.ideo && mv.share >= 0.25 && n.stab < 33) {
         const channel = I.elections && !n.emergency && ELECTORAL[mv.ideo] && n.laws.press !== 'censored';
         // the fuse: a movement must be ready for months before it rises (ID.Arcs tells the story of it)
@@ -678,18 +659,21 @@
   };
 
   P.boostOpp = function (G, n, amt, minUrban) {
-    for (let p = 1; p < G.provinces.length; p++) { const Pr = G.provinces[p]; if (Pr.owner === n.id && Pr.urban >= (minUrban || 0)) { Pr.oppStr = c100(Pr.oppStr + amt); Pr.unrest = c100(Pr.unrest + amt * 0.6); } }
+    ID.Cities.each(G, n, (r, u) => { if (minUrban && u.i < 0) return; r.str = c100(r.str + amt); r.un = c100(r.un + amt * 0.6); });
   };
 
   P.electionForecast = function (G, n) {
     let g = 0;
     for (const f of F) g += (n.fp[f] / 100) * clamp((n.fs[f] - 20) / 60, 0, 1);
+    g -= ((n.a.opp || 0) / 100 - 0.3) * 0.08; // how far the cities have turned against the government
     g += (n.ls - n.lsPrev) * 0.004 + (n.nwars && n.glory > 50 ? 0.04 : 0) - n.we * 0.002 - (n.depression ? 0.07 : 0) + ID.mod(n, 'vote') + 0.06;
     return clamp(g, 0.05, 0.95);
   };
   P.oppositionParty = function (G, n) {
     const mv = n.a.mv; if (mv && mv.ideo && ELECTORAL[mv.ideo]) return mv.ideo;
     let best = null, bv = 0;
+    const t = ID.Cities.tilt(G, n); for (const k in t) if (ELECTORAL[k] && t[k] > bv) { bv = t[k]; best = k; } // the cities' favourite
+    if (best) return best; bv = 0;
     for (const k in n.drift) if (ELECTORAL[k] && n.drift[k] > bv) { bv = n.drift[k]; best = k; }
     if (best) return best;
     const map = { liberal: n.fs.workers < 45 ? 'socdem' : 'natpop', socdem: n.fs.capital > n.fs.workers ? 'liberal' : 'demsoc', demsoc: 'socdem', marketsoc: 'demsoc', conmon: 'liberal', minarchy: 'liberal' };

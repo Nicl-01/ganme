@@ -9,22 +9,22 @@
   const IN = (c) => (ID.IDEOLOGIES[c.ideo] ? ID.IDEOLOGIES[c.ideo].name : 'the opposition');
   const pct = (v) => Math.round((v || 0) * 100) + '%';
   /* act on the provinces where this movement is strong */
-  const onMove = (G, n, ideo, fn) => { let k = 0; for (let p = 1; p < G.provinces.length; p++) { const Pr = G.provinces[p]; if (Pr.owner === n.id && Pr.opp === ideo) { fn(Pr); k++; } } return k; };
+  const onMove = (G, n, ideo, fn) => ID.Cities.forLean(G, n, ideo, fn); // the cities (and countryside) where this movement is strong
   const fac = { socialist: 'workers', anarchist: 'workers', liberal: 'intelligentsia', conservative: 'clergy', authoritarian: 'military', heterodox: 'intelligentsia' };
 
   /* ---------------------------------------------------------------- a rising, in two warnings */
   ev({ id: 'arc_rev1', sys: 1, sfx: 'alarm', tone: 'bad', title: (n, G, c) => 'The committees of ' + IN(c),
-    text: (n, G, c) => 'In the provinces where the ' + IN(c) + ' movement is strong, committees have begun to meet openly. They collect dues, run soup kitchens and drill in the evenings. They hold ' + pct(c.share) + ' of the country. They are not yet asking for power. They will.',
+    text: (n, G, c) => 'In ' + (ID.Cities.list(ID.Cities.rising(G, n, c.ideo).names) || 'the cities') + ', where the ' + IN(c) + ' movement is strong, committees have begun to meet openly. They collect dues, run soup kitchens and drill in the evenings. They hold ' + pct(c.share) + ' of the country. They are not yet asking for power. They will.',
     opts: [
-      { label: 'Negotiate with their leaders', tip: 'Concessions to the people behind them. The movement loses its edge; the regime loses face.', fx: [['auth', -10], ['fn', (G, n, c) => { onMove(G, n, c.ideo, (Pr) => { Pr.oppStr *= 0.75; Pr.unrest = clamp(Pr.unrest - 6, 0, 100); }); const f = fac[ID.IDEOLOGIES[c.ideo].family]; if (f) { n.sm[f] += 6; n.fs[f] = Math.min(100, n.fs[f] + 5); } }], ['note', 'The movement weakens by a quarter; its social base is courted'], ['grievance', -6]], ai: 2 },
-      { label: 'Infiltrate and divide', tip: 'Needs a political police.', can: (n) => n.laws.security === 'secret' || n.laws.security === 'terror', fx: [['fn', (G, n, c) => onMove(G, n, c.ideo, (Pr) => { Pr.oppStr *= 0.8; })], ['note', 'The movement weakens by a fifth'], ['grievance', 5]] },
-      { label: 'Crack down now', tip: 'Arrests and closures before it grows. It will be remembered.', fx: [['fn', (G, n, c) => onMove(G, n, c.ideo, (Pr) => { Pr.oppStr *= 0.65; Pr.unrest = clamp(Pr.unrest + 10, 0, 100); })], ['note', 'The movement weakens by a third; unrest rises where it was'], ['grievance', 15], ['sup', 'intelligentsia', -8]] },
+      { label: 'Negotiate with their leaders', tip: 'Concessions to the people behind them. The movement loses its edge; the regime loses face.', fx: [['auth', -10], ['fn', (G, n, c) => { onMove(G, n, c.ideo, (Pr) => { Pr.str *= 0.75; Pr.un = clamp(Pr.un - 6, 0, 100); }); const f = fac[ID.IDEOLOGIES[c.ideo].family]; if (f) { n.sm[f] += 6; n.fs[f] = Math.min(100, n.fs[f] + 5); } }], ['note', 'The movement weakens by a quarter; its social base is courted'], ['grievance', -6]], ai: 2 },
+      { label: 'Infiltrate and divide', tip: 'Needs a political police.', can: (n) => n.laws.security === 'secret' || n.laws.security === 'terror', fx: [['fn', (G, n, c) => onMove(G, n, c.ideo, (Pr) => { Pr.str *= 0.8; })], ['note', 'The movement weakens by a fifth'], ['grievance', 5]] },
+      { label: 'Crack down now', tip: 'Arrests and closures before it grows. It will be remembered.', fx: [['fn', (G, n, c) => onMove(G, n, c.ideo, (Pr) => { Pr.str *= 0.65; Pr.un = clamp(Pr.un + 10, 0, 100); })], ['note', 'The movement weakens by a third; unrest rises where it was'], ['grievance', 15], ['sup', 'intelligentsia', -8]] },
     ] });
   ev({ id: 'arc_rev2', sys: 1, sfx: 'alarm', tone: 'bad', title: (n, G, c) => 'The general strike is called',
     text: (n, G, c) => 'The ' + IN(c) + ' committees have called a general strike for the first of next month and published a list of demands that ends with the government’s resignation. Their militias are armed. The army is watching to see what you do.',
     opts: [
-      { label: 'Meet their demands', tip: 'The movement collapses as a threat. The regime moves toward what they wanted.', fx: [['fn', (G, n, c) => { onMove(G, n, c.ideo, (Pr) => { Pr.oppStr *= 0.45; }); if (n.drift[c.ideo] != null) n.drift[c.ideo] = Math.min(100, n.drift[c.ideo] + 18); }], ['note', 'The movement is halved; any drift toward it grows'], ['stab', 5], ['auth', -15]], ai: 2 },
-      { label: 'Martial law', tip: 'Soldiers at every factory gate. It may work; it will cost.', fx: [['fn', (G, n, c) => onMove(G, n, c.ideo, (Pr) => { Pr.oppStr *= 0.65; Pr.unrest = clamp(Pr.unrest + 12, 0, 100); })], ['mod', 'unrest', -8, 6, 'Martial law'], ['grievance', 20], ['sup', 'military', 4]] },
+      { label: 'Meet their demands', tip: 'The movement collapses as a threat. The regime moves toward what they wanted.', fx: [['fn', (G, n, c) => { onMove(G, n, c.ideo, (Pr) => { Pr.str *= 0.45; }); if (n.drift[c.ideo] != null) n.drift[c.ideo] = Math.min(100, n.drift[c.ideo] + 18); }], ['note', 'The movement is halved; any drift toward it grows'], ['stab', 5], ['auth', -15]], ai: 2 },
+      { label: 'Martial law', tip: 'Soldiers at every factory gate. It may work; it will cost.', fx: [['fn', (G, n, c) => onMove(G, n, c.ideo, (Pr) => { Pr.str *= 0.65; Pr.un = clamp(Pr.un + 12, 0, 100); })], ['mod', 'unrest', -8, 6, 'Martial law'], ['grievance', 20], ['sup', 'military', 4]] },
       { label: 'Let them come', tip: 'If they rise, the army will be ready.', fx: [['mod', 'def', 0.12, 4, 'The army stands ready'], ['sup', 'military', 3]] },
     ] });
 

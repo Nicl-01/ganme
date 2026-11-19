@@ -116,7 +116,7 @@ switch · news ticker along the bottom. Event "dispatch" modal in the centre.
 
 Keys: Space pause, 1–5 speed, arrows/WASD pan, +/− zoom, G government, E economy, L laws,
 P programme, M military, F foreign, O world, H handbook, Z X C V B N map modes (political, ideology,
-opposition, stability, supply, terrain), Esc close.
+cities, stability, supply, terrain), Esc close.
 
 Map renderer: one offscreen canvas at 1px per tile (ImageData via a Uint32Array), repaint
 only `G.dirty` tiles plus neighbours, `drawImage` scaled with smoothing off; vector overlays
@@ -616,9 +616,7 @@ Brief (session 1 of 2): buildings that can be damaged, destroyed and rebuilt; fo
 effect; industry with a real output; ports that carry trade; trade and industry that are ideological in real numbers;
 a revision of artillery and bombing; an atomic bomb that is scarce, slow, costly and much stronger, plus a very late
 thermonuclear bomb. The user also asked that none of it be hidden: they had played several runs without noticing
-how well supplied their army was. **Session 2 (not done): cities replace the provincial "primary opposition"**
-(`Pr.opp` / `Pr.oppStr` feed uprisings, civil wars, secession, liberation wars, subversion ops, three arcs, doctrine
-actions, programmes, the Opposition map mode and the save format; see the plan in the session log).
+how well supplied their army was. Session 2 (cities replace the provincial opposition) is the next section.
 
 - **Condition** (`sim/world.js`): `G.hp` (Uint8, 0–100, saved as `hp`; saves without it load at 100) for every
   building tile. `ID.damage(G, i, pts)`, `ID.structMonth(G, countOnly)` (monthly, first thing in `Game.month`: repairs
@@ -738,6 +736,69 @@ the Handbook page, the troops/industry tooltips, every panel opened and six seco
 save and reload through `localStorage`. Also seen: a running thermonuclear programme's card (progress, pace, cost,
 formula tooltip) and a thermonuclear strike from the tile card (51% of Aurelia dead, the region white with
 irradiation). Not seen in the browser: the old-save path (headless only), the AI deciding to use the bomb.
+
+## Session 12: cities replace the provincial opposition
+
+Brief: cities drive population, taxes, unrest and politics; each city has its own lean and unrest; the big cities decide
+which way the country tilts; the regional "primary opposition" is gone. The plan was run through the vault's design
+checklists first (Interesting Decisions, Feedback and Clarity, Systems and Emergence, Grand Strategy Design), which
+added city actions with real trade-offs, a breakdown behind every number, narration, rally-round-the-flag and limits on
+micromanagement.
+
+- **Engine** `sim/cities.js` (`ID.Cities`, loaded after `sim/politics.js`). Records: `G.cty[tile]` for every city
+  (`{nm, lean, str, un, sp, cd, court, calm, rally, o, br, ub, hl, g, ut}`; names from `ID.genName` seeded by tile),
+  `n.rural` for the countryside. `Ct.assign` maps each province to its nearest city within 28 tiles (`Pr.cu`, 0 =
+  countryside) and builds `n.a.units` (`{key, i, r, w, share}`): voice = 800 × condition for a city (capital ×3),
+  land's people × 0.35 for the countryside. `Ct.month` (first thing in `Politics.provinces`) sets each unit's unrest
+  (13 + living standards, stability, famine, war weariness, security law, size, damage, occupation, strikes, the lean
+  itself, courting, concessions, rally; breakdown in `ub`) and grows its lean exactly as the old province opposition grew
+  (unrest, class support with urban 0.85 / 0.1, press, police, transition, mods, revolutionary waves; breakdown in
+  `br`; the countryside at 0.6 speed); provinces' unrest is pulled 40% toward their unit's; `n.a.cityOut` = Σ 6 ×
+  condition × (1 − unrest/200) replaces the flat 6 per city in industry; `n.a.opp` = Σ share × strength.
+- **The tilt** `Ct.tilt` = Σ share × clamp((strength − 40) / 35) per movement; `Ct.movement` replaces
+  `Politics.movement` (same 25% / stability 33 / six-month fuse; > 80% is a revolution). `Ct.rising` gives the rising
+  cities, their provinces, the farthest rural provinces in proportion to the countryside's part, and their names (used in
+  news, headlines, the post-mortem and the arcs). Elections: opposition party = the strongest electoral lean in the tilt,
+  forecast −0.08 × (opp/100 − 0.3). Drift: +0.5 × tilt toward each drift target.
+- **Actions** `Ct.ACT`/`Ct.cost`/`Ct.preview`/`Ct.block`/`Ct.act`: court (gold 20 + 500 × share, 5 auth; lean −8, −1.5 a
+  month and unrest −8 for a year), crack down (police or harder; 8 + 40 × share auth; lean ×0.6, unrest −15, grievance
+  +5 + 30 × share, under a free/licensed press +3 unrest in every other city and intelligentsia −4), concede (10 + 50 ×
+  share auth; lean ×0.3, calm two years, drift toward the lean +8 + 40 × share, or legitimacy −2 if the system cannot
+  become it). Cooldowns 12/12/24 months. `Ct.aiMonth` (from `AI.month`). `Ct.hit` (from bombing, barrages and bomb
+  rings): six months of rally (lean −8) unless the government is losing (`n.a.losingWar`: war score < −0.3), then the
+  bombs feed the opposition.
+- **Moved to cities**: foreign funding (`Ct.agitate`, two units a month), doctrine seeds and "Call the workers to
+  rise", programme `subvert`, events (`helpAbroad`, kindred movements, the Old Lands revival), the arcs (`onMove` →
+  `Ct.forLean`, act on `str`/`un`), grievance bursts, changes of regime, civil wars and secessions (the new state takes
+  its unit's lean), the liberator combat bonus. `Pr.opp`/`Pr.oppStr`/`Pr.sponsor` are gone; saves keep the two slots
+  (null, 0) and save `cty`; saves without `cty` migrate each city from its province's old opposition and the countryside
+  from the most common rural one (`Ct.migrate`).
+- **UI**: State panel section "Cities" (the tilt, the five biggest cities and the countryside with voice, lean bar,
+  unrest and the three actions), city tile card (`UI.cityCard`, `UI.cityActs`, breakdown tooltip `UI.unitTip`), "Answers to"
+  row on other tiles, map mode C is now **Cities** (province coloured by its unit's lean, city names with lean strength at
+  zoom 4.5+), hover text, one grouped "Cities turning" alert, a Report item naming the cities and the levers, a headline
+  when one of your three biggest cities turns, Handbook page "Cities and politics".
+- Tests: `tools/structures.js` (44 checks: voices add to 100%, capital ×3, tilt at strength 90 / at 40, crackdown and
+  cooldown, concession and drift, a rising names its cities, old-save migration).
+
+| Measure | Before cities (arsenal build) | After |
+|---|---|---|
+| Historical, 20 runs: civil wars / wars / peace median | 3.5 / 31.4 / 6.2 y | 3.3 / 33.2 / 6.0 y |
+| Historical: largest state avg (max) | 22% (28%) | 21% (27%) |
+| Random (simulate, 9 runs): civil wars / wars / largest avg (max) | 1.1 / 25.6 / 25% (56%) | 0.1 / 23.2 / 22% (36%) |
+| Random: ideology changes by revolution / drift / election | 0 / 3 / 1 | 3 / 5 / 1 |
+| Human proxy: at war / peace median / fell | 7% / 6.9 y / 4 of 8 | 8% / 6.3 y / 6 of 8 |
+| Soak, AI playing the player: won / survived / fell | 7 / 9 / 8 | 6 / 8 / 10 |
+| Random dispatches per player run (events) | ~60 | 51.5 (87% distinct, max 3) |
+
+Tuning: the first version (rising from strength 45 to 85, countryside weighing all its land's people) gave 2.9 civil
+wars a run and let the countryside hold 77% of Aurelia's voice; the rising curve is now 40 → 75 and the countryside
+weighs × 0.35 with capitals × 3 (1913: countryside 15–56%, capitals 12–64%). Random-world civil wars were already
+erratic before (0.0–2.1 across earlier passes); stability under 33 and a 25% tilt rarely coincide there. The human proxy
+and soak falls rose a little on 8 and 24 samples; watch for it in play. Browser: State panel Cities section, a city
+tile card with the three actions, the enemy city row, the Cities map mode with names and lean colour, no console errors
+(checked in separate tabs). Not seen in the browser: a rising with named cities, the "city turns" headline, the arcs'
+new wording (headless only).
 
 ## Published (end of session 2)
 

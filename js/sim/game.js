@@ -228,7 +228,7 @@
       v: 1, seed: G.seed, size: G.size, scenario: G.scenario, difficulty: G.difficulty, challenge: G.challenge, ironman: G.ironman, tick: G.tick, startTick: G.startTick || 0, speed: G.speed, rng: G.rng.s, era: G.era,
       owner: rle(G.owner), bld: rle(G.bld), hp: rle(G.hp), rad: G.radList.map((i) => [i, G.rad[i]]),
       nations: G.nations, player: G.player, rel,
-      prov: G.provinces.slice(1).map((P) => [P.core, Math.round(P.unrest * 10) / 10, P.opp, Math.round(P.oppStr * 10) / 10, Math.round(P.integ), P.lastOwner, P.sponsor, P.oil || 0, P.oilFound || 0, P.oilCo || 0, P.oilShare || 0, P.oilAt || 0, P.canal || 0]), fronts: G.fronts || null,
+      cty: G.cty || {}, prov: G.provinces.slice(1).map((P) => [P.core, Math.round(P.unrest * 10) / 10, null, 0, Math.round(P.integ), P.lastOwner, P.sponsor, P.oil || 0, P.oilFound || 0, P.oilCo || 0, P.oilShare || 0, P.oilAt || 0, P.canal || 0]), fronts: G.fronts || null,
       attacks: G.attacks.map((a) => ({ id: a.id, from: a.from, to: a.to, troops: a.troops, committed: a.committed, style: a.style, amphib: a.amphib, taken: a.taken })),
       boats: G.boats, missiles: G.missiles, builds: G.builds, dip: G.dip, blocs: G.blocs, news: G.news.slice(-60), chronicle: G.chronicle, world: G.world, flags: G.flags,
       evq: G.evq, tray: G.tray || [], votes: G.votes, nextId: G.nextId, over: G.over, tut: G.tut, offers: G.offers || [], shock: G.shock || [], historical: !!G.historical, story: G.story || null, beach: G.beach || [], press: G.press || null,
@@ -254,9 +254,10 @@
     if (sc) for (const n of G.nations) if (n && !n.tree && !n.civilOf && ID.FOCUS.nations[n.base]) n.tree = n.base; // saves from before programmes existed
     unrle(o.owner, G.owner); unrle(o.bld, G.bld); if (o.hp) unrle(o.hp, G.hp); else for (let i = 0; i < N; i++) if (G.bld[i]) G.hp[i] = 100; // saves from before building condition
     for (const [i, v] of o.rad || []) { G.rad[i] = v; G.radList.push(i); }
+    const oldOpp = []; G.cty = o.cty || null;
     for (let p = 1; p < G.provinces.length; p++) {
       const P = G.provinces[p], s = o.prov[p - 1];
-      P.cnt = {}; P.core = s[0]; P.unrest = s[1]; P.opp = s[2]; P.oppStr = s[3]; P.integ = s[4]; P.lastOwner = s[5]; P.sponsor = s[6]; P.oil = s[7] || 0; P.oilFound = s[8] || 0; P.oilCo = s[9] || 0; P.oilShare = s[10] || 0; P.oilAt = s[11] || 0; P.canal = s[12] || 0; if (sc && sc.region && o.size === sc.size && P.cy >= sc.region.y * G.H) P.region = sc.region.key; P.nCity = 0; P.nFact = 0; P.owner = 0; P.urban = 0.06;
+      P.cnt = {}; P.core = s[0]; P.unrest = s[1]; if (s[2]) oldOpp[p] = [s[2], s[3]]; P.integ = s[4]; P.lastOwner = s[5]; P.sponsor = s[6]; P.oil = s[7] || 0; P.oilFound = s[8] || 0; P.oilCo = s[9] || 0; P.oilShare = s[10] || 0; P.oilAt = s[11] || 0; P.canal = s[12] || 0; if (sc && sc.region && o.size === sc.size && P.cy >= sc.region.y * G.H) P.region = sc.region.key; P.nCity = 0; P.nFact = 0; P.owner = 0; P.urban = 0.06;
     }
     for (let i = 0; i < N; i++) {
       const ow = G.owner[i]; if (ow) { const P = G.provinces[G.prov[i]]; P.cnt[ow] = (P.cnt[ow] || 0) + 1; }
@@ -269,6 +270,8 @@
     G._mark = new Int32Array(N);
     for (const a of o.attacks || []) { a.heap = new ID.Heap(); a.prog = 0; a.base = G.tick; a.scan = -999; a.idle = 0; G.attacks.push(a); }
     ID.recalcBorders(G); ID.recomputeForts(G); ID.structMonth(G, true);
+    if (!G.cty) ID.Cities.migrate(G, oldOpp); // saves from before cities had politics
+    ID.Cities.assign(G);
     for (const n of G.nations) if (n && n.alive) ID.Combat.refresh(G, n);
     ID.Combat.updateSupply(G); Gm.updateStats(G);
     return G;

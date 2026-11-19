@@ -124,7 +124,7 @@
     h += '<span class="dim">' + t.name + (G.river[i] ? ', river' : '') + (G.fortCov[i] && G.fortCov[i] === o ? ', fortified' : '') + (G.bld[i] ? ' · ' + ID.BUILDINGS[G.bld[i]].name : '') + '</span>';
     if (n === me || R.mode === 'stability' || R.mode === 'opposition') {
       if (n === me || !UI.fuzzy(me)) {
-        h += '<hr>Unrest <b>' + Math.round(Pr.unrest) + '</b>' + (Pr.opp ? ' · ' + esc(ID.IDEOLOGIES[Pr.opp].name) + ' movement <b>' + Math.round(Pr.oppStr) + '</b>' : '');
+        const cu = ID.Cities.ofProv(G, Pr); h += '<hr>Unrest <b>' + Math.round(Pr.unrest) + '</b>' + (cu ? ' · ' + esc(cu.nm) + (cu.lean && cu.lean !== n.ideo && cu.str >= 20 ? ' leans ' + esc(ID.IDEOLOGIES[cu.lean].name) + ' <b>' + Math.round(cu.str) + '</b>' : ' is loyal') : '');
         if (Pr.core && Pr.core !== o && n) h += '<br><span class="warn">Occupied: ' + Math.round(Pr.integ) + '% integrated</span>';
       }
     }

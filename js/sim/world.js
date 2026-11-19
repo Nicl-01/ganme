@@ -355,7 +355,7 @@
     const rng = G.rng;
     for (let p = 1; p < G.provinces.length; p++) {
       const P = G.provinces[p];
-      P.cnt = {}; P.owner = 0; P.core = 0; P.unrest = 8; P.opp = null; P.oppStr = 0; P.integ = 100; P.nCity = 0; P.nFact = 0; P.urban = 0.06; P.lastOwner = 0; P.sponsor = 0;
+      P.cnt = {}; P.owner = 0; P.core = 0; P.unrest = 8; P.cu = 0; P.integ = 100; P.nCity = 0; P.nFact = 0; P.urban = 0.06; P.lastOwner = 0; P.sponsor = 0;
     }
 
     /* choose capitals */

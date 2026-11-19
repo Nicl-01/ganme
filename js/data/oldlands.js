@@ -570,7 +570,7 @@
       ID.storyPeace(G, ['Neshar', 'Khemra', 'Baskhar', 'Amaran', 'Varanth']);
       for (const n of old(G)) {
         if (is(n, 'thirdpos', 'pannat')) { n.flags.discredited = 1; n.glory = Math.max(0, n.glory - 20); ID.addMod(n, 'legit', -8, 60, 'The setback'); n.charisma = Math.max(0, n.charisma - 15); }
-        if (n.base !== 'Neshar') { for (let p = 1; p < G.provinces.length; p++) { const P = G.provinces[p]; if (P.owner === n.id && G.rng.chance(0.25)) { if (P.opp !== 'revival') { P.opp = 'revival'; P.oppStr = Math.max(P.oppStr * 0.5, 10); } P.oppStr = Math.min(100, P.oppStr + 12); } } if (n.drift.revival != null) n.drift.revival = Math.min(100, n.drift.revival + 15); }
+        if (n.base !== 'Neshar') { ID.Cities.agitate(G, n, 'revival', 12, 0, { chance: 0.25, take: 101, floor: 10 }); if (n.drift.revival != null) n.drift.revival = Math.min(100, n.drift.revival + 15); }
       }
       const ns = by(G, 'Neshar'); if (ns) { ns.glory = Math.min(100, ns.glory + 25); ns.flags.occupier = 1; ID.addMod(ns, 'unrest', 4, 240, 'The occupied territories'); }
     } });

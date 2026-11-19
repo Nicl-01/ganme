@@ -79,9 +79,26 @@
     h += sec('The regime', kv(rows));
 
     const ds = ID.Events.decisionsFor(G, n);
+    h += sec('Cities', citiesCard(G, n), 'who decides');
     h += sec('Decisions', ds.map((d) => decisionCard(G, n, d)).join('') || '<p class="dim">Nothing to decide.</p>');
     return h;
   };
+
+  /* The biggest cities and the countryside: their voice, lean and unrest, the tilt of the country, and the levers. */
+  function citiesCard(G, n) {
+    const Ct = ID.Cities, us = Ct.units(G, n), t = Ct.tilt(G, n), fuzzy = UI.fuzzy(n);
+    let h = '<p class="dim" style="font-size:13.5px;margin:0 0 6px">Every city has its own lean and unrest; the countryside is one voice. Big cities weigh most. When a quarter of the country’s voice stands behind one movement and stability falls under 33, it can rise.</p>';
+    const tl = Object.keys(t).sort((a, b) => t[b] - t[a]).slice(0, 3);
+    h += kv([['The country leans', tl.length ? tl.map((k) => UI.ideoTag(k) + ' ' + Math.round(t[k] * 100) + '%').join(' ') : '<span class="good">nowhere against you</span>', '<h5>The tilt</h5>Each city’s voice × how far its lean has gone past strength ' + Ct.RISE + ' (fully at ' + (Ct.RISE + Ct.SPAN) + '). 25% behind one movement is enough for a rising; the same share pulls elections and drift toward it.']]);
+    const top = us.filter((u) => u.i >= 0).slice(0, 5), rural = us.find((u) => u.i < 0);
+    for (const u of top.concat(rural ? [rural] : [])) {
+      const r = u.r, against = r.lean && r.lean !== n.ideo && r.str >= 20;
+      h += '<div class="card"' + tip(UI.unitTip(G, n, r)) + '><div class="row nw"><b style="flex:1">' + esc(r.nm) + (u.i === n.capital ? ' <span class="dim">capital</span>' : '') + '</b><span class="num dim">' + Math.round(u.share * 100) + '% of the voice</span></div>' +
+        '<div class="row nw" style="font-size:13.5px">' + (fuzzy ? '<span class="dim">The police reports are unreliable.</span>' : (against ? UI.ideoTag(r.lean) + ' ' + bar(r.str, 100, r.str >= 60 ? 'r' : r.str >= Ct.RISE ? 'o' : 's') + ' <b class="num">' + Math.round(r.str) + '</b>' : '<span class="good">loyal</span>') + ' &nbsp;unrest <b class="num ' + (r.un > 50 ? 'bad' : r.un > 30 ? 'warn' : '') + '">' + Math.round(r.un) + '</b>') + '</div>' +
+        (against && !fuzzy ? UI.cityActs(G, n, u) : '') + (u.i >= 0 ? '<div class="row">' + btn('Show', 'goto', u.i, { cls: 'sm ghost' }) + '</div>' : '') + '</div>';
+    }
+    return h;
+  }
 
   /* ================================================================ ECONOMY */
   const BL = { welfare: ['Welfare', 'Raises living standards directly. Workers and peasants judge you by them.'], security: ['Security', 'Funds police and — if your laws allow them — the political police. Underfund a repressive apparatus and buried grievance bursts out.'], science: ['Science', 'Research points toward the technology you have chosen.'], arms: ['Arms', 'Equipment quality (attack and defence) and the goodwill of the officer corps.'], heavy: ['Heavy industry', 'The plan’s investment fund: builds factories for you.'] };
@@ -389,7 +406,7 @@
   };
 
   /* ================================================================ HANDBOOK */
-  const HELP_NAV = [['play', 'How to play'], ['ideos', 'Ideologies'], ['factions', 'Factions'], ['legit', 'Legitimacy'], ['doc', 'Doctrines'], ['war', 'War'], ['build', 'Land and buildings'], ['ind', 'Industry, trade and the bomb'], ['prog', 'Programmes and history'], ['sov', 'Sovereignty and oil']];
+  const HELP_NAV = [['play', 'How to play'], ['ideos', 'Ideologies'], ['factions', 'Factions'], ['legit', 'Legitimacy'], ['doc', 'Doctrines'], ['war', 'War'], ['build', 'Land and buildings'], ['ind', 'Industry, trade and the bomb'], ['cities', 'Cities and politics'], ['prog', 'Programmes and history'], ['sov', 'Sovereignty and oil']];
   Pn.helpIdeo = function (id, G) {
     const I = ID.IDEOLOGIES[id], M = ID.ECON[I.econ.model], C = ID.CONTROL[I.control.type]; let h = '';
     h += '<div class="card sh" style="border-left:12px solid ' + I.css + '"><b style="font:800 26px/1.05 var(--cond)">' + esc(I.name) + '</b><div class="dim" style="font-size:14px">' + ID.FAMILIES[I.family].name + ' family</div><p class="lead" style="margin:6px 0 0">' + esc(I.short) + '</p></div>';
@@ -458,6 +475,15 @@
       h += sec('Fortresses', kv([['Front speed in cover', '×' + (1 / (1 + ID.FORT.cost)).toFixed(2) + ' at full condition'], ['Attacker losses in cover', '×' + (1 + ID.FORT.loss)], ['Shelling and bombing kills', '×' + (1 - ID.FORT.shelter)], ['Siege ignores', '85% of it'], ['Infiltration ignores', '50% of it'], ['Radius', ID.FORT_RADIUS + ' tiles']]) + '<p class="dim" style="font-size:13.5px;margin-top:6px">All scaled by the fort’s condition. Select any covered tile to see the exact numbers for it.</p>');
       return h;
     }
+    if (pg === 'cities') {
+      const Ct = ID.Cities;
+      h += sec('Cities and politics', '<p class="lead">Politics happens in cities. Every city has a voice (its size: housing × condition, the capital triple), a lean (the movement it backs, if not yours), the strength of that lean (0–100) and its own unrest. The countryside is one more voice, about a third as loud as the people its land feeds (villages are scattered), and it moves slowly. Each province answers to its nearest city within ' + Ct.REACH + ' tiles, or to the countryside, and its unrest follows that city’s.</p>');
+      h += sec('Why a city leans', '<ul><li>Each month the lean grows with the unrest there, with how unhappy its supporters are (workers and intelligentsia in cities, peasants and clergy in the villages), with a free press and with revolutionary waves from abroad; police and secret police push it down. Foreign money, doctrines and programmes agitate it directly.</li><li>Unrest rises with low living standards and stability, famine, war weariness, size, war damage, occupation, strikes and the lean itself.</li><li>Hover any city, on the map or the State panel, for its reasons line by line.</li></ul>');
+      h += sec('Who decides', '<p class="lead">The tilt: for each movement, the sum of every voice × how far its lean is past ' + Ct.RISE + ' (fully at ' + (Ct.RISE + Ct.SPAN) + '). At 25% with stability under 33 for half a year a rising can come; above 80% the regime falls outright. Rebels take the rising cities and their provinces. The same tilt picks the opposition party at elections, moves the vote, and pulls drift toward ideologies your system can become.</p>');
+      h += sec('What you can do about a city', kv([['Court the city', 'gold and a little authority (more for big cities): lean −8 now, −1.5 a month and unrest −8 for a year. Slow; fixes nothing underneath.'], ['Crack down', 'needs at least public order police: lean ×0.6, unrest −15 now; hidden grievance grows, and under a free or licensed press every other city’s unrest +3.'], ['Concede', 'authority: lean ×0.3 and calm for two years, but the country drifts toward what they wanted (or loses legitimacy if it cannot become that).']]) + '<p class="dim" style="font-size:13.5px;margin-top:6px">Each city can be dealt with again after a year (concessions two). Laws, budget and propaganda still act on every city at once.</p>');
+      h += sec('War and cities', '<p class="lead">A bombed or shelled city rallies round the flag for six months (lean −8, unrest −6), unless its government is losing the war badly; then the bombs feed the opposition. Cities are where taxes come from too: each pays its 6 a month of output less half its unrest.</p>');
+      return h;
+    }
     if (pg === 'ind') {
       const E = ID.Economy, A = E.ATOM, Bm = ID.Combat.BOMB;
       h += sec('Industry', '<p class="lead">Industrial capacity = factories (by condition) × 12 × (1 + 0.1 × industrial technology) × ore (0.78–1.22). It is most of your industrial output and the ceiling on arms: capacity × ' + E.ARMS_K + ' gold of kit a month (×' + E.PLAN_ARMS + ' for a planned economy).</p>');
@@ -475,7 +501,7 @@
     }
     h += '<p class="lead">You run a state. What it can do follows from what it believes.</p>' +
       sec('The loop', '<ul><li>Time runs in days. <b>Space</b> pauses; <b>1–5</b> set the speed.</li><li>Each month the economy pays out, factions shift, provinces stir, and the world acts.</li><li>Crises and history stop the clock and ask for a decision. Ordinary dispatches wait at the left of the map while time runs; leave one for three months and your ministers settle it.</li><li>Alerts at the lower right tell you what needs attention; click one to go there.</li><li>When things go wrong, open the <b>Report</b> (R). Your ministers name each problem, its cause, and the levers that answer it, one click away.</li><li>When the state falls you are told why. That is the game teaching you.</li></ul>') +
-      sec('Controls', kv([['Pan', 'drag, arrow keys or WASD'], ['Zoom', 'scroll, pinch, + and −'], ['Select', 'click a tile'], ['Pause / speed', 'Space / 1–5'], ['Attack selected enemy', 'Enter'], ['Panels', 'R report · G state · E economy · L laws · M war · F foreign · O world · H handbook'], ['Map modes', 'Z political · X ideology · C opposition · V unrest · B supply · N terrain'], ['Close / menu', 'Esc']]) + '<p class="dim" style="font-size:13.5px;margin-top:6px">Nothing in the game needs a right-click.</p>') +
+      sec('Controls', kv([['Pan', 'drag, arrow keys or WASD'], ['Zoom', 'scroll, pinch, + and −'], ['Select', 'click a tile'], ['Pause / speed', 'Space / 1–5'], ['Attack selected enemy', 'Enter'], ['Panels', 'R report · G state · E economy · L laws · M war · F foreign · O world · H handbook'], ['Map modes', 'Z political · X ideology · C cities · V unrest · B supply · N terrain'], ['Close / menu', 'Esc']]) + '<p class="dim" style="font-size:13.5px;margin-top:6px">Nothing in the game needs a right-click.</p>') +
       sec('What to watch', '<ul><li><b>Stability</b> is legitimacy plus the support of whoever holds power. Under 38, movements can rise.</li><li><b>Factions</b>: hover each to see what moves it.</li><li><b>Drift</b>: every regime slides toward something else. Remove the causes, or embrace the change on your terms.</li><li><b>Censorship</b> hides bad news from the public and true numbers from you.</li><li><b>Threat</b>: conquest alarms the world. Coalitions form against the leader.</li></ul>') +
       sec('Your system', n ? '<button class="nrow on" data-act="help" data-a=\'"i:' + n.ideo + '"\'><span class="sw" style="background:' + ID.ideo(n).css + ';margin:0"></span><b>' + esc(ID.ideo(n).name) + '</b><span></span><small>' + esc(ID.ideo(n).short) + '</small></button>' : '');
     return h;

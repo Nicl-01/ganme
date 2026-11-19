@@ -583,13 +583,7 @@
       if (o.type !== 'fund') continue;
       const sec = ID.LAWS.security.opts[t.laws.security], press = ID.LAWS.press.opts[t.laws.press];
       const mult = (0.6 + I.dip.export) * (I.flags.permRev ? 2 : 1) * (1 + press.infl) * (1 - sec.repress * 0.35) * (t.id === G.player ? ID.DIFFICULTY[G.difficulty].subvert : 1);
-      const mine = []; for (let p = 1; p < G.provinces.length; p++) if (G.provinces[p].owner === t.id) mine.push(G.provinces[p]);
-      const sizeK = clamp(mine.length / 8, 0.25, 1);
-      for (let c = 0; c < 3 && mine.length; c++) {
-        const Pr = G.rng.pick(mine);
-        if (Pr.opp !== n.ideo && (Pr.oppStr < 30 || G.rng.chance(0.25))) { Pr.opp = n.ideo; Pr.sponsor = n.id; Pr.oppStr = Math.max(Pr.oppStr * 0.6, 8); }
-        if (Pr.opp === n.ideo) { Pr.oppStr = clamp(Pr.oppStr + 3.2 * mult * sizeK, 0, 100); Pr.sponsor = n.id; ID.fx(G, 'subvert', Pr.center, { col: I.color }); }
-      }
+      ID.Cities.agitate(G, t, n.ideo, 3.2 * mult, n.id, { count: 2, fx: 1 }); // the money goes to a couple of cities at a time
       if (G.rng.chance(0.03 + sec.detect * 0.07)) {
         ID.addOpBoth(G, n.id, t.id, -18);
         if (t.id === G.player) { ID.news(G, 'Your police trace foreign money in the opposition to ' + n.name + '.', 'bad', t.id, n.id); t.a.knownOps = t.a.knownOps || {}; t.a.knownOps[n.id] = G.tick; }

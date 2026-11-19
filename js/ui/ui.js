@@ -139,6 +139,7 @@
     if (typeof r === 'string') { UI.toast(r); ID.Audio.play('bad'); } else UI.toast((G.owner[UI.sel] ? 'Transports are at sea with ' : 'Settlers sail with ') + ID.fmtPop(r.troops) + ' troops.', true);
   };
   acts.missile = (a) => { const G = UI.G; if (UI.sel < 0) return; const k = ['', 'atom', 'thermo'][a] || ''; UI.tryDo(ID.Combat.launchMissile(G, P(), UI.sel, k), k === 'thermo' ? 'Thermonuclear strike launched.' : k ? 'Atomic strike launched.' : 'Missile launched.'); };
+  acts.cityAct = (a) => { const G = UI.G; if (UI.tryDo(ID.Cities.act(G, P(), a[0] === 'r' ? 'r' : +a[0], a[1]), ID.Cities.ACT[a[1]].name + '.')) { UI.renderSel(); UI.panelDirty = true; if (UI.renderPanel) UI.renderPanel(); } };
   acts.rebuild = (a) => { const G = UI.G, n = P(); if (UI.tryDo(ID.startRebuild(G, n, a))) { ID.Audio.play('build'); UI.toast('Rebuilding the ' + ID.BUILDINGS[G.bld[a]].name.toLowerCase() + ': ready in ' + Math.round(ID.buildDays(G, n, G.bld[a]) * 0.5 / 30) + ' months.', true); UI.renderSel(); } };
   acts.rebuildAll = () => { const G = UI.G, n = P(); let k = 0; for (const i of G.blist.slice()) if (G.owner[i] === n.id && G.bld[i] && !G.hp[i] && !ID.canRebuild(G, n, i)) { ID.startRebuild(G, n, i); k++; } UI.toast(k ? 'Rebuilding ' + k + ' wrecked building' + (k > 1 ? 's' : '') + '.' : 'Nothing could be rebuilt (gold, or already under way).', !!k); };
   acts.propose = (a) => { const G = UI.G; UI.tryDo(ID.Diplomacy.propose(G, P(), G.nations[a[0]], a[1]), { trade: 'Trade treaty signed.', nap: 'Non-aggression pact signed.', ally: 'Alliance concluded.', peace: 'Peace is signed.', embargo: 'Embargo declared.', cancel_trade: 'Trade treaty cancelled.', cancel_nap: 'Pact denounced.' }[a[1]]); };
@@ -288,7 +289,7 @@
   };
 
   /* ---------------------------------------------------------------- map modes */
-  const MODES = [['political', 'Political', 'Z', 'Who holds what. Your own borders are red; bloc members share a border colour.'], ['ideology', 'Ideology', 'X', 'Every state coloured by its system.'], ['opposition', 'Opposition', 'C', 'The leading opposition movement in each province, shaded by its strength.'], ['stability', 'Unrest', 'V', 'Unrest by province: pale is quiet, red is close to revolt.'], ['supply', 'Supply', 'B', 'Green is joined to its capital by land. Ochre is supplied by sea through a port or a beachhead. Red is cut off: with an enemy beside it, it surrenders within weeks.'], ['terrain', 'Terrain', 'N', 'Plains and farmland are fast; forest, hills and mountains slow a front and bleed it.']];
+  const MODES = [['political', 'Political', 'Z', 'Who holds what. Your own borders are red; bloc members share a border colour.'], ['ideology', 'Ideology', 'X', 'Every state coloured by its system.'], ['opposition', 'Cities', 'C', 'Each province in the colour of what its city (or the countryside) leans toward, deeper the stronger the lean. Pale means loyal.'], ['stability', 'Unrest', 'V', 'Unrest by province: pale is quiet, red is close to revolt.'], ['supply', 'Supply', 'B', 'Green is joined to its capital by land. Ochre is supplied by sea through a port or a beachhead. Red is cut off: with an enemy beside it, it surrenders within weeks.'], ['terrain', 'Terrain', 'N', 'Plains and farmland are fast; forest, hills and mountains slow a front and bleed it.']];
   UI.MODES = MODES;
   UI.renderModes = function () {
     $('#modes').innerHTML = MODES.map((m) => '<button class="' + (R.mode === m[0] ? 'on' : '') + '" data-act="mode" data-a=\'"' + m[0] + '"\'' + tip('<b>' + m[1] + ' map</b> <span class="dim">(' + m[2] + ')</span><br>' + m[3]) + '>' + m[1] + '<kbd>' + m[2] + '</kbd></button>').join('');
@@ -324,6 +325,30 @@
     if (t.bloc) h += '<span class="warn">Their bloc, the ' + esc(G.blocs[t.bloc].name) + ', may join them.</span>';
     return h;
   };
+  /* ---------------------------------------------------------------- cities */
+  UI.leanTxt = (n, r) => (r.lean && r.lean !== n.ideo && r.str >= 20 ? UI.ideoTag(r.lean) + ' ' + Math.round(r.str) : '<span class="good">loyal</span>') + ' · unrest ' + Math.round(r.un);
+  const brk = (L) => (L || []).slice().sort((a, b) => Math.abs(b[1]) - Math.abs(a[1])).slice(0, 7).map((x) => '<span>' + esc(x[0]) + '</span><b class="' + (x[1] > 0 ? 'bad' : 'good') + '">' + (x[1] > 0 ? '+' : '−') + Math.abs(x[1]).toFixed(1) + '</b>').join('');
+  /* Why a city leans and why it is restless, line by line. */
+  UI.unitTip = function (G, n, r) {
+    const u = ID.Cities.units(G, n).find((x) => x.r === r), IN = r.lean ? ID.IDEOLOGIES[r.lean].name : '';
+    let h = '<h5>' + esc(r.nm) + '</h5>' + (u ? Math.round(u.share * 100) + '% of the country’s voice' + ' · about ' + ID.fmtPop(n.pop * (u.i >= 0 ? 400 * G.hp[u.i] / 100 : n.popLand) / Math.max(1, ID.popCap(n))) + ' people' + '. ' : '');
+    h += r.lean && r.lean !== n.ideo ? 'Leans <b>' + esc(IN) + '</b>, strength <b>' + Math.round(r.str) + '</b> (' + (r.g >= 0 ? '+' : '−') + Math.abs(r.g || 0).toFixed(1) + ' a month)' + (r.sp && G.nations[r.sp] && n.a.knownOps && n.a.knownOps[r.sp] ? ' <span class="warn">Funded by ' + esc(G.nations[r.sp].name) + '.</span>' : '') + '<div class="kv">' + brk(r.br) + '</div>' : 'Loyal to the government for now.';
+    h += '<hr>Unrest <b>' + Math.round(r.un) + '</b>, heading for ' + Math.round(r.ut != null ? r.ut : r.un) + ' (13 plus):<div class="kv">' + brk(r.ub) + '</div>';
+    h += '<span class="dim">At strength ' + ID.Cities.RISE + ' a city starts to join a rising, fully at ' + (ID.Cities.RISE + ID.Cities.SPAN) + '. When a quarter of the country’s voice stands behind one movement and stability is under 33, it can rise.</span>';
+    return h;
+  };
+  /* A city: its lean, unrest, size, and the three things you can do about it. */
+  UI.cityCard = function (G, n, i, own) {
+    const Ct = ID.Cities, r = Ct.rec(G, i), u = Ct.units(G, n).find((x) => x.i === i);
+    let h = '<div class="note"' + tip(UI.unitTip(G, n, r)) + '><b>' + esc(r.nm) + '</b>' + (i === n.capital ? ' · the capital' : '') + (u ? ' · ' + Math.round(u.share * 100) + '% of the voice' : '') + '<br>' + UI.leanTxt(n, r) + (r.rally > 0 ? ' · <span class="good">rallying</span>' : '') + (r.court > 0 ? ' · courted' : '') + (r.calm > 0 ? ' · concessions' : '') + '</div>';
+    if (own && u) h += UI.cityActs(G, n, u);
+    return h;
+  };
+  UI.cityActs = function (G, n, u) {
+    const Ct = ID.Cities;
+    return '<div class="row">' + ['court', 'crack', 'concede'].map((a) => { const c = Ct.cost(G, n, u, a), why = Ct.block(G, n, u.key, a); return UI.btn(Ct.ACT[a].name + ' <span>' + [c.gold ? c.gold + ' gold' : '', c.auth ? c.auth + ' auth' : ''].filter(Boolean).join(' · ') + '</span>', 'cityAct', [String(u.key), a], { cls: 'sm' + (a === 'crack' ? ' red' : ' ghost'), off: why, tip: '<h5>' + Ct.ACT[a].name + ': ' + esc(u.r.nm) + '</h5>' + esc(Ct.preview(G, n, u, a)) + '<hr><span class="dim">Again after ' + Ct.ACT[a].cd + ' months.</span>' }); }).join('') + '</div>';
+  };
+
   /* ---------------------------------------------------------------- buildings in numbers */
   const pctC = (v) => Math.round(v * 100) + '%';
   UI.fortTip = function (G, i) {
@@ -365,12 +390,13 @@
     if (G.rad[i]) rows.push(['Irradiated', '<span class="bad">' + Math.ceil(G.rad[i] / 12) + ' yrs</span>']);
     if (n && o === G.player) {
       rows.push(['Province unrest', '<span class="' + (Pr.unrest > 50 ? 'bad' : Pr.unrest > 30 ? 'warn' : '') + '">' + Math.round(Pr.unrest) + '</span>', 'Unrest in this province. Over 72 in unintegrated land, it may break away.']);
-      if (Pr.opp) rows.push(['Opposition', UI.ideoTag(Pr.opp) + ' ' + Math.round(Pr.oppStr), 'The leading opposition movement here and its strength. Provinces above 45 join an uprising.' + (Pr.sponsor && me.a.knownOps && me.a.knownOps[Pr.sponsor] ? '<br><span class="warn">Funded by ' + esc(G.nations[Pr.sponsor].name) + '.</span>' : '')]);
+      { const cu = ID.Cities.ofProv(G, Pr); if (cu && G.bld[i] !== B.CITY) rows.push(['Answers to', esc(cu.nm) + ' · ' + UI.leanTxt(n, cu), UI.unitTip(G, n, cu)]); }
       if (Pr.core !== o) rows.push(['Integration', Math.round(Pr.integ) + '%', 'Conquered land resists until integrated. ' + (Pr.core && G.nations[Pr.core] ? 'Its people still look to ' + esc(G.nations[Pr.core].name) + '.' : '')]);
       if (G.cut[i] === 1) rows.push(['Supply', '<span class="bad">cut off</span>', '<h5>Cut off</h5>This land has no road, port or beachhead linking it to the rest of the country. If an enemy at war with you borders it, it surrenders within weeks and takes its share of your troops with it.<hr><b>To save it:</b> break through by land, land troops on its coast from one of your ports (the landing becomes a beachhead), or finish a port here.']);
       else if (G.cut[i] === 2) rows.push(['Supply', '<span class="warn">by sea</span>', '<h5>Supplied by sea</h5>This land is not joined to your capital by land. It is supplied through ' + (ID.Combat.isBeach(G, i) ? 'this beachhead' : 'a port or a beachhead on its coast') + ' and fights normally.<hr>If the enemy takes every port and beachhead in it, it is cut off.']);
       h += UI.kv(rows);
       const bl = G.bld[i];
+      if (bl === B.CITY) h += UI.cityCard(G, n, i, true);
       if (bl) h += UI.bldCard(G, n, i, true);
       else {
         h += '<div class="build">' + [1, 2, 3, 4, 5].map((t) => { const b = ID.BUILDINGS[t]; const why = ID.canBuild(G, me, i, t); return UI.btn(b.name.split(' ')[0] + '<small>' + ID.buildCost(G, me, t) + '</small>', 'build', t, { cls: 'sm', off: why, tip: '<h5>' + b.name + '</h5>' + esc(b.desc) + '<hr>Cost <b>' + ID.buildCost(G, me, t) + '</b> gold · ' + Math.round(ID.buildDays(G, me, t) / 30) + ' months · upkeep ' + b.upkeep + '/mo' }); }).join('') + '</div>';
@@ -383,6 +409,7 @@
       rows.push(['Troops', ID.fmtPop(n.troops)]); rows.push(['Stability', Math.round(clamp(n.stab, 0, 100)) + '']);
       if (ID.atWar(G, me.id, n.id)) { const ml = UI.monthsLeft(n); rows.push(['Their kit', '<span class="' + (n.equip < me.equip - 0.05 ? 'good' : n.equip > me.equip + 0.05 ? 'bad' : '') + '">' + Math.round(n.equip * 100) + '%</span>' + (ml ? ' <span class="dim">· dry in ' + ml + '</span>' : ''), '<h5>Their kit ' + Math.round(n.equip * 100) + '% against your ' + Math.round(me.equip * 100) + '%</h5>Kit multiplies attack and, a little less, defence: on equal numbers that is ×' + (me.equip / n.equip).toFixed(2) + ' in your favour when you attack them.' + (ml ? '<hr>Their arsenal runs dry in about ' + ml + ' at this rate. Keep them fighting, bomb their factories, take their cities.' : '')]); }
       h += UI.kv(rows);
+      if (G.bld[i] === B.CITY && !UI.fuzzy(me)) h += UI.cityCard(G, n, i, false);
       if (G.bld[i]) h += UI.bldCard(G, n, i, false);
       h += '<div class="acts">';
       if (ID.atWar(G, me.id, n.id)) {
@@ -475,7 +502,7 @@
     if (n.strike > 0) add('<b>Strike</b>: industry −30%', 'gov', true);
     if (I.elections && n.electionAt && !n.emergency && n.electionAt - G.tick < 240) { const f = ID.Politics.electionForecast(G, n); add('<b>Election in ' + Math.max(1, Math.round((n.electionAt - G.tick) / 30)) + ' months</b>: forecast ' + Math.round(f * 100) + '%', 'gov', f < 0.5); }
     if ((n.a.unrest || 0) > 40) add('<b>Unrest ' + Math.round(n.a.unrest) + '</b> across the country', 'gov', true);
-    if (n.a.mv && n.a.mv.ideo && n.a.mv.share > 0.12 && !UI.fuzzy(n)) add('<b>' + ID.IDEOLOGIES[n.a.mv.ideo].name + '</b> movement strong in ' + Math.round(n.a.mv.share * 100) + '% of the country', 'gov', n.a.mv.share > 0.22);
+    if (!UI.fuzzy(n)) { const hot = ID.Cities.units(UI.G, n).slice(0, 5).filter((u) => u.r.lean && u.r.lean !== n.ideo && u.r.str >= 60); if (hot.length) add('<b>Cities turning</b>: ' + hot.slice(0, 3).map((u) => esc(u.r.nm) + ' (' + esc(ID.IDEOLOGIES[u.r.lean].name) + ' ' + Math.round(u.r.str) + ')').join(', ') + (n.a.mv && n.a.mv.ideo ? ' · ' + Math.round(n.a.mv.share * 100) + '% of the country behind ' + esc(ID.IDEOLOGIES[n.a.mv.ideo].name) : ''), 'gov', hot.some((u) => u.r.str >= 75) || (n.a.mv && n.a.mv.share > 0.2)); }
     const det = ID.LAWS.security.opts[n.laws.security].detect;
     if (det > 0 && n.coupRisk > 0.006) add('<b>Security service</b>: officers are plotting', 'gov', n.coupRisk > 0.02);
     if (n.a.knownOps) for (const k in n.a.knownOps) if (G.tick - n.a.knownOps[k] < 720 && G.nations[+k].alive) add('<b>' + esc(G.nations[+k].base) + '</b> is funding your opposition', 'for', false, 'focus', +k);

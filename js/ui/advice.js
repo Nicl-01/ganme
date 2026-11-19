@@ -66,6 +66,13 @@
       if (inc > n.troops * 0.35) add(78, 'The front is giving way', ID.fmtPop(inc) + ' enemy troops are attacking, against ' + ID.fmtPop(n.troops) + ' of yours. Counter-attack where they are thin, or make peace before the line breaks.', [go('War', 'mil'), go('Foreign', 'for'), measure(G, n, 'c_rally')]);
     }
 
+    /* cities turning */
+    if (!fuzzy && n.a.mv && n.a.mv.ideo && n.a.mv.share > 0.1) {
+      const Ct = ID.Cities, IN = ID.IDEOLOGIES[n.a.mv.ideo].name, us = Ct.units(G, n).filter((u) => u.r.lean === n.a.mv.ideo && u.r.str >= Ct.RISE).slice(0, 3);
+      add(n.a.mv.share > 0.22 ? (n.stab < 40 ? 80 : 60) : 40, Math.round(n.a.mv.share * 100) + '% of the country stands behind ' + esc(IN), 'Led by ' + esc(Ct.list(us.map((u) => u.r.nm))) + '. At 25%, with stability under 33, it can rise. Court the biggest of them, crack down, or concede before it does; or remove what feeds it (hover a city for the reasons).',
+        [us[0] && us[0].i >= 0 ? { label: 'Show ' + us[0].r.nm, act: 'goto', arg: us[0].i, cls: 'ghost' } : null, go('Cities', 'gov'), go('Laws', 'law')]);
+    }
+
     /* kit and industry */
     if (n.equip < (n.nwars ? 0.85 : 0.7)) {
       const fac = (n.a.armsPaid || 0) > (n.a.armsCap || 0) * 1.02;
