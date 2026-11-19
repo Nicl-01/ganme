@@ -85,6 +85,26 @@
 
   /* ================================================================ ECONOMY */
   const BL = { welfare: ['Welfare', 'Raises living standards directly. Workers and peasants judge you by them.'], security: ['Security', 'Funds police and — if your laws allow them — the political police. Underfund a repressive apparatus and buried grievance bursts out.'], science: ['Science', 'Research points toward the technology you have chosen.'], arms: ['Arms', 'Equipment quality (attack and defence) and the goodwill of the officer corps.'], heavy: ['Heavy industry', 'The plan’s investment fund: builds factories for you.'] };
+  /* Every trade route in numbers: who, how the goods travel, what the two systems make of each other, what it pays. */
+  function tradeCard(G, n) {
+    const E = ID.Economy, I = ID.ideo(n), model = I.econ.model, RT = (n.a.routes || []).slice().sort((a, b) => b.v - a.v);
+    const PC = ID.nbe(n, B.PORT), cap = E.PORT_ROUTES * PC;
+    let h = '<p class="lead" style="margin:0 0 6px">Route value = (0.8 + ' + E.ROUTE_K + ' × the smaller of the two outputs) × <b>reach</b> × <b>fit</b>, then × your trade law' + (model === 'trade' ? ' × 1.6 for a commercial economy' : '') + '.</p>';
+    h += kv([
+      ['Sea routes', (n.a.seaRoutes || 0) + ' of ' + (Math.round(cap * 10) / 10), '<h5>Ports carry trade</h5>Neighbours trade overland at full value. Anyone else is reached by sea, through a working port at each end: each of your ports carries ' + E.PORT_ROUTES + ' routes at full value. Routes beyond that go overland through third countries at ' + Math.round(E.OVERLAND * 100) + '%. A bombed or captured port carries less until it is repaired.'],
+      ['Who keeps the money', { market: 'merchants: 30% of trade is reinvested', mixed: 'merchants: 30% of trade is reinvested', pact: 'merchants: 30% of trade is reinvested', trade: 'the treasury: 55% of trade', plan: 'the state monopoly: +40% of trade as revenue', cyber: 'the state monopoly: +40% of trade as revenue', council: 'the federation, through its levy', manor: 'the treasury: 30% of trade' }[model] || '—', '<h5>The ideological market</h5>Market economies let merchants keep their profits: 30% of trade income goes into the private investment fund that builds factories. Planned economies run trade as a state monopoly: 40% of it is added to revenue, but routes with market economies are worth 20% less. Commercial republics live on it: ×1.6 and 55% to the treasury.'],
+    ]);
+    if (!RT.length) return h + '<p class="dim">No treaties. Propose them on the Foreign panel; neighbours and states you can reach by sea pay most.</p>';
+    h += '<table class="t"><tr><th>Partner</th><th>Reach</th><th class="n">Fit</th><th class="n">/mo</th></tr>' + RT.map((r) => {
+      const o = G.nations[r.o], aff = ID.ideoAffinity(n.ideo, o.ideo);
+      const how = r.border ? 'border' : r.sea ? '<span class="good">sea</span>' : '<span class="warn">overland</span>';
+      const ft = '<h5>Fit ×' + r.fit.toFixed(2) + '</h5>1 + 0.3 × ideological affinity (' + Math.round(aff) + ' of ±45)' + (ID.sameBloc(G, n.id, o.id) ? ' + 0.2 for a shared bloc' : '') + '. Kindred systems trade more; rivals and opposites trade little.' + ((model === 'plan' || model === 'cyber') && !(ID.ideo(o).econ.model === 'plan' || ID.ideo(o).econ.model === 'cyber') ? '<hr>×0.8: a planned economy dealing with a market one.' : '') + (r.fit >= 1 ? '<hr><span class="good">Friendly enough to sell you arms</span> from its spare capacity.' : '');
+      const rt = r.border ? 'You share a border: full value.' : r.sea ? 'By sea, through your ports and theirs: ' + Math.round(r.reach * 100) + '% of full value.' : (PC < 0.35 ? 'You have no working port' : (r.oPort || 0) < 0.35 ? 'They have no working port' : r.port <= E.OVERLAND ? 'Your port or theirs is badly damaged' : 'Your ports are full (' + E.PORT_ROUTES + ' routes each)') + ': overland through third countries at ' + Math.round(E.OVERLAND * 100) + '%.';
+      return '<tr><td>' + R.swatch(o) + ' ' + esc(o.base) + '</td><td' + tip(rt) + '>' + how + '</td><td class="n"' + tip(ft) + '><span class="' + (r.fit > 1.05 ? 'good' : r.fit < 0.95 ? 'bad' : '') + '">×' + r.fit.toFixed(2) + '</span></td><td class="n">' + r.v.toFixed(1) + '</td></tr>';
+    }).join('') + '</table>';
+    return h;
+  }
+
   Pn.eco = function (G, n) {
     const I = ID.ideo(n), e = I.econ, M = ID.ECON[e.model], E = ID.Economy; let h = '';
     h += '<div class="card sh"><b style="font:700 19px var(--cond)">' + esc(M.name) + '</b><p class="lead" style="margin:2px 0 4px">' + esc(M.how) + '</p><p class="lead" style="margin:0"><b>How it fails:</b> ' + esc(M.fail) + '</p></div>';
@@ -96,8 +116,9 @@
     if (n.inflation > 1) rows.push(['Inflation', '<span class="' + (n.inflation > 40 ? 'bad' : 'warn') + '">' + Math.round(n.inflation) + '</span>', 'Eats living standards. Over 60 is hyperinflation.']);
     rows.push(['Living standards', '<span class="' + (n.ls < 38 ? 'bad' : n.ls > 65 ? 'good' : '') + '">' + Math.round(n.ls) + '</span>', 'Output per head against the world, plus welfare, minus famine, inflation and war.']);
     rows.push(['Food', '<span class="' + (n.foodBal < 0.93 ? 'bad' : n.foodBal < 1 ? 'warn' : '') + '">' + Math.round(n.foodBal * 100) + '% of need</span>']);
-    rows.push(['Trade treaties', n.ntrade + ' · ' + Math.round(n.tradeInc) + '/mo', 'Sign treaties on the Foreign panel. Ports and free trade multiply the income.']);
+    rows.push(['Industrial capacity', Math.round(n.a.ic || 0) + '', '<h5>Industrial capacity</h5>What your factories can make: factories by condition × 12 × (1 + 0.1 × industrial technology ' + n.tech.ind + ') × ore ' + (n.a.oreF || 1).toFixed(2) + '.<hr>It is most of your industrial output, and the ceiling on arms: ' + (E.armsCap(n)).toFixed(1) + ' gold of kit a month' + (e.model === 'plan' || e.model === 'cyber' ? ' (a planned economy turns 20% more of it to arms)' : '') + '. Bombing and capture cut it until the factories are repaired.']);
     h += sec('Accounts', kv(rows));
+    h += sec('Trade', tradeCard(G, n), Math.round(n.tradeInc) + ' a month');
 
     // model levers
     let lv = '';
@@ -137,12 +158,16 @@
     h += sec('Budget', bh, 'share of revenue');
 
     // research
-    const cap = ID.ERAS[ID.eraOf(G.tick)].techCap; const TN = { ind: ['Industry', '+10% factory output per level'], mil: ['Military', '+7% attack and defence per level. Level 2: blitz. Level 4: missile silos. Level 6: atomic weapons.'], agr: ['Agriculture', '+9% food and +7% population capacity per level'] };
+    const cap = ID.ERAS[ID.eraOf(G.tick)].techCap; const TN = { ind: ['Industry', '+10% factory output per level'], mil: ['Military', '+7% attack and defence per level. Level 2: blitz. Level 4: missile silos. Level 6: an atomic programme (years of work). Level 7: a thermonuclear one.'], agr: ['Agriculture', '+9% food and +7% population capacity per level'] };
     let rh = '<div class="row">' + ['ind', 'mil', 'agr'].map((k) => btn(TN[k][0] + ' ' + n.tech[k], 'focusTech', k, { cls: n.focus === k ? 'on' : 'ghost', tip: '<h5>' + TN[k][0] + ' technology ' + n.tech[k] + '</h5>' + TN[k][1] + '<hr>This era allows up to level ' + cap + '. States behind the world leader research 35% faster.' })).join('') + '</div>';
     rh += n.a.techCost ? '<div class="row nw" style="margin-top:6px">' + bar(n.sci, n.a.techCost, 's') + '<span class="num" style="font-size:13.5px">' + Math.round(n.sci) + ' / ' + Math.round(n.a.techCost) + '</span></div>' : '<div class="note">This field is at the ceiling for the ' + ID.ERAS[ID.eraOf(G.tick)].name + '. Choose another, or wait for ' + (ID.ERAS[ID.eraOf(G.tick) + 1] ? ID.ERAS[ID.eraOf(G.tick) + 1].from : 'the end') + '.</div>';
     h += sec('Research', rh, 'pick one focus');
 
-    h += sec('Built', kv([1, 2, 3, 4, 5].map((t) => [ID.BUILDINGS[t].name, n.nb[t] + '', esc(ID.BUILDINGS[t].desc)])) + '<p class="dim" style="font-size:13.5px;margin-top:6px">To build, select a tile of your own land on the map.</p>');
+    const st = [0, [0, 0], [0, 0], [0, 0], [0, 0], [0, 0]]; for (const i of G.blist) if (G.owner[i] === n.id) { const t = G.bld[i]; if (!G.hp[i]) st[t][0]++; else if (G.hp[i] < 100) st[t][1]++; }
+    let bt = kv([1, 2, 3, 4, 5].map((t) => [ID.BUILDINGS[t].name, n.nb[t] + (st[t][0] ? ' <span class="bad">· ' + st[t][0] + ' wrecked</span>' : '') + (st[t][1] ? ' <span class="warn">· ' + st[t][1] + ' damaged</span>' : '') + ' <span class="dim">(' + Math.round(ID.nbe(n, t) * 10) / 10 + ' working)</span>', esc(ID.BUILDINGS[t].desc)]));
+    if (n.a.repairPaid) bt += '<p class="dim" style="font-size:13.5px;margin-top:6px">Repairs cost ' + n.a.repairPaid.toFixed(1) + ' gold last month: ' + (n.nwars ? '2' : '6') + ' condition a month' + (n.nwars ? ' at war' : ' in peace') + ', faster with more industry.</p>';
+    if (n.a.wrecks) bt += '<div class="row" style="margin-top:6px">' + btn('Rebuild every wreck', 'rebuildAll', null, { cls: 'sm red', tip: 'Half the price and half the time of new buildings, paid now for all that the treasury can afford.' }) + '</div>';
+    h += sec('Built', bt + '<p class="dim" style="font-size:13.5px;margin-top:6px">Number · working equivalent by condition. To build, select a tile of your own land on the map.</p>');
     if (n.mods.length) h += sec('In effect', '<table class="t">' + n.mods.filter((m) => m.label && m.k.indexOf('pow_') !== 0).slice(0, 14).map((m) => '<tr><td>' + esc(m.label) + '</td><td class="n">' + (m.m > 200 ? 'lasting' : m.m + ' mo') + '</td></tr>').join('') + '</table>');
     return h;
   };
@@ -191,10 +216,7 @@
   /* ================================================================ WAR */
   /* Equipment in plain numbers: what the army needs, what the arms budget pays. */
   function equipTip(n) {
-    const need = n.a.armsNeed || 1, paid = n.a.armsPaid || 0, tg = n.a.eqTarget != null ? n.a.eqTarget : n.equip;
-    return '<h5>Equipment ' + Math.round(n.equip * 100) + '%</h5>Rifles, guns, lorries and shells. It multiplies attack directly and defence a little less.<div class="kv"><span>The army needs</span><b>' + need.toFixed(1) + ' gold a month</b><span>The arms budget pays</span><b class="' + (paid < need * 0.9 ? 'bad' : 'good') + '">' + paid.toFixed(1) + '</b><span>Heading for</span><b>' + Math.round(tg * 100) + '%</b></div><hr>' +
-      (paid < need * 0.95 ? '<b>To raise it:</b> give arms a larger share of the budget (State), raise revenue, or keep fewer men under arms: every soldier needs kit.' : 'The army is fully paid for. Spending more than it needs buys up to 135%.') +
-      (n.a.shortage ? '<br><span class="bad">Shortages in industry are costing ten points.</span>' : '') + '<br><span class="dim">It moves a tenth of the way to its target each month, so a big draft or a budget cut shows up slowly.</span>';
+    return '<h5>Equipment ' + Math.round(n.equip * 100) + '%</h5>Rifles, guns, lorries and shells. ' + UI.kitText(n) + (n.a.shortage ? '<br><span class="bad">Shortages in industry are costing ten points.</span>' : '');
   }
   function supplyCard(G, n) {
     let cutN = 0, seaN = 0; const where = { cut: -1, sea: -1 };
@@ -209,6 +231,22 @@
     h += '<p class="dim" style="font-size:13.5px;margin-top:6px">The Supply map (B) shows all three. Encircling the enemy works the same way against them.</p>';
     return h;
   }
+  /* Silos, missiles and the bomb: where the programme stands, what it costs, when the next device is ready. */
+  function weaponsCard(G, n) {
+    const E = ID.Economy, at = E.atom(n), Bm = ID.Combat.BOMB;
+    let h = kv([['Silos', n.nb[B.SILO] + (ID.nbe(n, B.SILO) < n.nb[B.SILO] ? ' <span class="warn">(' + Math.round(ID.nbe(n, B.SILO) * 10) / 10 + ' working)</span>' : '')], ['Missiles ready', n.missiles + ''],
+      ['Atomic warheads', at.lv >= 1 ? n.nukes + '' : '<span class="dim">no bomb</span>', ID.UI.bombTip(G, n, 'atom')]].concat(at.lv >= 2 || n.thermo ? [['Thermonuclear devices', (n.thermo || 0) + '', ID.UI.bombTip(G, n, 'thermo')]] : []).concat([['Range', ID.Combat.missileRange(G) + ' tiles']]));
+    if (at.on) {
+      const A = E.ATOM[at.on], rate = E.atomRate(n, at.on), left = Math.max(0, A.need - at.prog);
+      h += '<div class="card"' + tip('<h5>Progress</h5>' + rate.toFixed(2) + ' points a month of ' + A.need + ' = ' + A.rate + ' × industrial capacity ' + Math.round(n.a.ic || 0) + '/' + A.icRef + ' (0.4–1.6) × (0.8 + 2 × science share ' + Math.round(n.budget.science * 100) + '%).<hr>Paid at ' + Math.round(A.share * 100) + '% of revenue a month (' + (n.a.atomCost || 0).toFixed(1) + '). No money, no progress.') + '><b>' + (at.on === 'thermo' ? 'Thermonuclear programme' : 'Atomic programme') + '</b> · ' + Math.round(at.prog) + '%' + bar(at.prog, A.need, 's') +
+        '<span class="dim" style="font-size:13.5px">About ' + yrs(Math.ceil(left / Math.max(0.05, rate))) + ' to a test at this pace · ' + (n.a.atomCost || 0).toFixed(1) + ' gold a month' + (n.a.atomStall ? ' · <span class="bad">stalled: the treasury cannot pay</span>' : '') + (at.leaked ? ' · <span class="warn">foreign intelligence knows</span>' : '') + '</span></div>';
+    }
+    if (at.make) h += '<div class="card"><b>' + (at.make.kind === 'thermo' ? 'Thermonuclear device' : 'Atomic warhead') + '</b> in production' + bar(G.tick - at.make.start, at.make.done - at.make.start, 's') + '<span class="dim" style="font-size:13.5px">Ready ' + ID.dateOf(at.make.done).short + '</span></div>';
+    for (const id of ['atom_programme', 'thermo_programme', 'build_missile', 'build_nuke', 'build_thermo']) { const dd = ID.Events.decision(id); if (!dd.show || dd.show(n, G)) h += decisionCard(G, n, dd); }
+    if (!at.lv && !at.on && n.tech.mil < 6) h += '<p class="dim" style="font-size:13.5px">The bomb needs military technology 6, ' + E.ATOM.atom.fac + ' working factories and a programme of many years.</p>';
+    h += !n.nb[B.SILO] ? '<div class="note">Build a missile silo on your own land first.</div>' : '<p class="dim" style="font-size:13.5px">To fire, select an enemy tile on the map during a war.</p>';
+    return h;
+  }
   Pn.mil = function (G, n) {
     const I = ID.ideo(n), r = ID.RECRUIT[n.laws.recruit], d = I.doctrine, Dp = ID.Diplomacy; let h = '';
     const mx = ID.maxMob(n);
@@ -218,12 +256,18 @@
     h += sec('Mobilisation', '<div class="sl"><span' + tip('<h5>Mobilisation</h5>The share of the population the pool refills toward. ' + esc(r.name) + ' allows up to ' + (mx * 100).toFixed(1) + '%.<hr>Every soldier is a worker missing from farm and factory: above about 6% output starts to fall. Peasants resent anything over 8%.') + '>Under arms</span><input type="range" min="5" max="' + Math.round(mx * 1000) + '" step="1" value="' + Math.round(n.mob * 1000) + '" data-in="mob" data-fmt="mob"><b data-val>' + (n.mob * 100).toFixed(1) + '%</b></div>' +
       kv([['Recruitment', esc(r.name), esc(r.desc)], ['Equipment', '<span class="' + (n.equip < 0.85 ? 'bad' : n.equip > 1.1 ? 'good' : '') + '">' + Math.round(n.equip * 100) + '%</span>' + (n.a.eqTarget != null && Math.abs(n.a.eqTarget - n.equip) > 0.02 ? ' <span class="dim">→ ' + Math.round(n.a.eqTarget * 100) + '%</span>' : ''), equipTip(n)], ['War weariness', '<span class="' + (n.we > 50 ? 'bad' : n.we > 25 ? 'warn' : '') + '">' + Math.round(n.we) + '</span>', 'Rises with casualties and every month at war. Cuts morale, stability and the patience of workers and peasants.'], ['Losses so far', ID.fmtPop(n.losses)], ['Largest single offensive', Math.round((n.emergency ? 1 : I.control.cap) * 100) + '% of the pool', I.control.cap < 1 ? esc(I.name) + ' cannot concentrate its forces: the militias answer to their assemblies.' : 'No limit.']]));
 
+    { // the arsenal: what the army fights with, and how long it lasts
+      const E = ID.Economy, need = n.a.armsNeed || 1, ml = UI.monthsLeft(n), net = (n.a.refill || 0) - (n.a.arsAged || 0) - (n.a.burn || 0) - (n.a.arsLost || 0) - (n.a.shellsM || 0) + (n.a.lootM || 0);
+      h += sec('Arsenal', '<div class="card"' + tip(UI.kitText(n)) + '><div class="row nw"><b style="font:800 22px var(--cond)">' + Math.round(n.ars || 0) + '</b><span style="flex:1;font-size:13.5px">&nbsp;in store · ' + ((n.ars || 0) / need).toFixed(1) + ' months of needs · kit <b class="' + (n.equip < 0.75 ? 'bad' : n.equip > 1.05 ? 'good' : '') + '">' + Math.round(n.equip * 100) + '%</b></span><span class="num ' + (net < 0 ? 'bad' : 'good') + '">' + (net >= 0 ? '+' : '−') + Math.abs(net).toFixed(1) + '/mo</span></div>' +
+        bar(n.ars || 0, E.ARS.life * need * 1.92, n.equip < 0.75 ? 'r' : n.equip > 1.05 ? 'g' : 'o') +
+        '<span class="dim" style="font-size:13.5px">' + (n.nwars ? (ml ? '<span class="bad">At this rate the arsenal runs dry in about ' + ml + '.</span> ' : 'The war is not draining it. ') : 'At peace it fills toward ' + Math.round((n.a.eqTarget || n.equip) * 100) + '% kit. ') + 'Hover for every flow in and out.</span></div>');
+    }
     h += sec('Supply', supplyCard(G, n));
 
     let wh = '';
     for (const e of Dp.enemies(G, n)) {
       const w = Dp.warOf(G, n.id, e.id), s = Dp.warScore(G, n, e), ev = Dp.evalProposal(G, n, e, 'peace');
-      wh += '<div class="card"><div class="row nw">' + R.swatch(e) + '<b style="flex:1">' + esc(e.name) + '</b><span class="dim num">' + yrs(Math.round((G.tick - w.start) / 30)) + '</span></div><div class="row nw" style="margin:5px 0"' + tip('War score: tiles taken against tiles lost, relative to the smaller state. Past ±12% the peace names a victor.') + '><span style="font-size:13.5px">losing</span>' + bar(s + 1, 2, s > 0.05 ? 'g' : s < -0.05 ? 'r' : '', 1) + '<span style="font-size:13.5px">winning</span></div><div class="row">' + btn('Show', 'goto', e.capital, { cls: 'sm ghost' }) + btn('Offer peace', 'propose', [e.id, 'peace'], { cls: 'sm ghost', off: ev.ok ? '' : ev.why, tip: 'Each side keeps what it holds.' }) + '<span class="dim" style="font-size:13.5px">' + ID.fmtPop(e.troops) + ' troops · ' + Dp.CB_NAMES[w.cb] + '</span></div>' + (ID.Combat.underdog(e, n) > 1.01 ? '<div class="good" style="font-size:13.5px"' + tip('A much stronger enemy meets the whole nation in arms: the weaker side defends better, up to +35%.') + '>The nation in arms: our defence +' + Math.round((ID.Combat.underdog(e, n) - 1) * 100) + '% against them</div>' : ID.Combat.underdog(n, e) > 1.01 ? '<div class="warn" style="font-size:13.5px"' + tip('We are much stronger: their whole nation is in arms against us.') + '>They are fighting for their lives: their defence +' + Math.round((ID.Combat.underdog(n, e) - 1) * 100) + '%</div>' : '') + '</div>';
+      wh += '<div class="card"><div class="row nw">' + R.swatch(e) + '<b style="flex:1">' + esc(e.name) + '</b><span class="dim num">' + yrs(Math.round((G.tick - w.start) / 30)) + '</span></div><div class="row nw" style="margin:5px 0"' + tip('War score: tiles taken against tiles lost, relative to the smaller state. Past ±12% the peace names a victor.') + '><span style="font-size:13.5px">losing</span>' + bar(s + 1, 2, s > 0.05 ? 'g' : s < -0.05 ? 'r' : '', 1) + '<span style="font-size:13.5px">winning</span></div><div class="row">' + btn('Show', 'goto', e.capital, { cls: 'sm ghost' }) + btn('Offer peace', 'propose', [e.id, 'peace'], { cls: 'sm ghost', off: ev.ok ? '' : ev.why, tip: 'Each side keeps what it holds.' }) + '<span class="dim" style="font-size:13.5px">' + ID.fmtPop(e.troops) + ' troops · kit ' + Math.round(e.equip * 100) + '%' + (UI.monthsLeft(e) ? ' (dry in ' + UI.monthsLeft(e) + ')' : '') + ' · ' + Dp.CB_NAMES[w.cb] + '</span></div>' + (ID.Combat.underdog(e, n) > 1.01 ? '<div class="good" style="font-size:13.5px"' + tip('A much stronger enemy meets the whole nation in arms: the weaker side defends better, up to +35%.') + '>The nation in arms: our defence +' + Math.round((ID.Combat.underdog(e, n) - 1) * 100) + '% against them</div>' : ID.Combat.underdog(n, e) > 1.01 ? '<div class="warn" style="font-size:13.5px"' + tip('We are much stronger: their whole nation is in arms against us.') + '>They are fighting for their lives: their defence +' + Math.round((ID.Combat.underdog(n, e) - 1) * 100) + '%</div>' : '') + '</div>';
     }
     h += sec('Wars', wh || '<p class="dim">At peace. To start a war, select a state on the map.</p>');
 
@@ -232,12 +276,7 @@
 
     h += sec('Doctrine', '<table class="t"><tr><th>Style</th><th class="n">Yours</th><th>Use</th></tr>' + Object.keys(ID.STYLES).map((k) => { const S = ID.STYLES[k], e = d.styles[k] || 0, ok = ID.Combat.styleOk(n, k); return '<tr' + tip('<h5>' + S.name + '</h5>' + esc(S.desc)) + '><td>' + S.name + '</td><td class="n ' + (e > 1.05 ? 'good' : e < 0.85 ? 'bad' : '') + '">' + (ok ? '×' + e.toFixed(2) : '—') + '</td><td class="dim" style="font-size:13.5px">' + ({ advance: 'general purpose', assault: 'when you outnumber them', blitz: 'open country, costs gold', infiltrate: 'rough terrain, forts', siege: 'fortress lines, costs gold' }[k]) + '</td></tr>'; }).join('') + '</table><p class="dim" style="font-size:13.5px;margin-top:6px">Home ground ×' + d.home + ' in defence' + (r.abroad ? ' · ×' + r.abroad + ' attack outside your own provinces' : '') + (r.roughBonus ? ' · ×' + r.roughBonus + ' in forest, hills and mountains' : '') + '</p>');
 
-    if (n.nb[B.SILO] || n.tech.mil >= 4) {
-      let sh = kv([['Silos', n.nb[B.SILO] + ''], ['Missiles ready', n.missiles + ''], ['Atomic warheads', n.nukes + ''], ['Range', ID.Combat.missileRange(G) + ' tiles']]);
-      for (const id of ['build_missile', 'build_nuke']) { const dd = ID.Events.decision(id); if (!dd.show || dd.show(n, G)) sh += decisionCard(G, n, dd); }
-      if (!n.nb[B.SILO]) sh += '<div class="note">Build a missile silo on your own land first.</div>'; else sh += '<p class="dim" style="font-size:13.5px">To fire, select an enemy tile on the map during a war.</p>';
-      h += sec('Strategic weapons', sh);
-    }
+    if (n.nb[B.SILO] || n.tech.mil >= 4) h += sec('Strategic weapons', weaponsCard(G, n));
     return h;
   };
 
@@ -350,7 +389,7 @@
   };
 
   /* ================================================================ HANDBOOK */
-  const HELP_NAV = [['play', 'How to play'], ['ideos', 'Ideologies'], ['factions', 'Factions'], ['legit', 'Legitimacy'], ['doc', 'Doctrines'], ['war', 'War'], ['build', 'Land and buildings'], ['prog', 'Programmes and history'], ['sov', 'Sovereignty and oil']];
+  const HELP_NAV = [['play', 'How to play'], ['ideos', 'Ideologies'], ['factions', 'Factions'], ['legit', 'Legitimacy'], ['doc', 'Doctrines'], ['war', 'War'], ['build', 'Land and buildings'], ['ind', 'Industry, trade and the bomb'], ['prog', 'Programmes and history'], ['sov', 'Sovereignty and oil']];
   Pn.helpIdeo = function (id, G) {
     const I = ID.IDEOLOGIES[id], M = ID.ECON[I.econ.model], C = ID.CONTROL[I.control.type]; let h = '';
     h += '<div class="card sh" style="border-left:12px solid ' + I.css + '"><b style="font:800 26px/1.05 var(--cond)">' + esc(I.name) + '</b><div class="dim" style="font-size:14px">' + ID.FAMILIES[I.family].name + ' family</div><p class="lead" style="margin:6px 0 0">' + esc(I.short) + '</p></div>';
@@ -415,6 +454,23 @@
     if (pg === 'build') {
       h += sec('Terrain', '<table class="t"><tr><th>Terrain</th><th class="n">Front speed</th><th class="n">Attacker’s cost</th><th class="n">People</th><th class="n">Food</th></tr>' + ID.TERRAIN.slice(1).map((t) => '<tr><td><span class="sw" style="background:rgb(' + t.col.join(',') + ')"></span>' + t.name + '</td><td class="n">÷' + t.cost + '</td><td class="n">×' + t.def + '</td><td class="n">' + t.pop + '</td><td class="n">' + t.food + '</td></tr>').join('') + '</table>');
       h += sec('Buildings', [1, 2, 3, 4, 5].map((t) => '<div class="card"><b>' + ID.BUILDINGS[t].name + '</b> <span class="dim" style="font-size:13.5px">' + ID.BUILDINGS[t].cost + ' gold and up · upkeep ' + ID.BUILDINGS[t].upkeep + '</span><p style="font-size:14.5px">' + esc(ID.BUILDINGS[t].desc) + '</p></div>').join('') + '<div class="note">Each building of a kind costs 14% more than the last. To build, select a tile of your own land.</div>');
+      h += sec('Condition', '<ul><li>Every building has a condition from 0 to 100%, and everything it does scales with it: a city at 50% houses half as many people. A bar under a building on the map shows damage; a crossed-out grey glyph is a wreck.</li><li><b>Damage</b>: taken in war, a city loses 30 and a port or factory 40 (fortresses and silos are destroyed). Artillery takes 50 from forts and 15 from the rest; bombers take 40 from factories and ports, 30 from cities, 15 from forts. Missiles destroy about half the buildings they hit; the bomb destroys everything.</li><li><b>Repair</b> is automatic: 6 points a month in peace, 2 at war (×0.5–1.5 with industrial capacity), paid at 0.5% of the building’s price per point.</li><li><b>Wrecks</b> (0%) do nothing until rebuilt: half the price, half the time. Select one, or use the alert.</li></ul>');
+      h += sec('Fortresses', kv([['Front speed in cover', '×' + (1 / (1 + ID.FORT.cost)).toFixed(2) + ' at full condition'], ['Attacker losses in cover', '×' + (1 + ID.FORT.loss)], ['Shelling and bombing kills', '×' + (1 - ID.FORT.shelter)], ['Siege ignores', '85% of it'], ['Infiltration ignores', '50% of it'], ['Radius', ID.FORT_RADIUS + ' tiles']]) + '<p class="dim" style="font-size:13.5px;margin-top:6px">All scaled by the fort’s condition. Select any covered tile to see the exact numbers for it.</p>');
+      return h;
+    }
+    if (pg === 'ind') {
+      const E = ID.Economy, A = E.ATOM, Bm = ID.Combat.BOMB;
+      h += sec('Industry', '<p class="lead">Industrial capacity = factories (by condition) × 12 × (1 + 0.1 × industrial technology) × ore (0.78–1.22). It is most of your industrial output and the ceiling on arms: capacity × ' + E.ARMS_K + ' gold of kit a month (×' + E.PLAN_ARMS + ' for a planned economy).</p>');
+      h += sec('The arsenal and kit', '<p class="lead">Kit 100% means as much equipment per soldier as the world’s average army. Your army draws it from an <b>arsenal</b>, and kit = 62% + 38% × arsenal ÷ (24 months of your army’s needs), between 62% and 135%. It multiplies attack, and defence a little less.</p><ul><li><b>In</b>: the arms budget, but no more than your factories can make (capacity × ' + E.ARMS_K + ', ×' + E.PLAN_ARMS + ' planned); arms bought from friendly partners with spare capacity (1.5× the price, up to a quarter of need, not under autarky); depots captured with enemy factories and cities (' + Math.round(E.ARS.loot * 100) + '% of their arsenal each).</li><li><b>Out</b>: 1/' + E.ARS.life + ' ages out every month; at war, ' + Math.round(E.ARS.war * 100) + '% of a month’s needs each month you fight (×1.3 on the offensive, ×0.7 dug in, ×' + E.ARS.idle + ' with no front moving), plus the kit of every soldier lost; every barrage or raid takes shells worth ' + Math.round(E.ARS.shells * 100) + '% of its gold.</li><li>Needs follow your army size smoothed over about a year, so a great draft dilutes kit gradually.</li><li>In peace the arsenal settles where the flow in matches ageing. At war, unless you raise the arms flow, it drains over a year or two. Fill it before the war; bomb the enemy’s factories so theirs cannot refill.</li></ul>');
+      h += sec('Trade', '<p class="lead">One route per treaty. Value = (0.8 + ' + E.ROUTE_K + ' × the smaller output) × reach × fit × your trade law.</p>' + kv([
+        ['Reach: neighbours', 'full, overland'], ['Reach: others by sea', 'full, through a working port at each end; each port carries ' + E.PORT_ROUTES + ' routes'], ['Reach: others otherwise', Math.round(E.OVERLAND * 100) + '%, overland through third countries'],
+        ['Fit', '1 + ' + E.FIT + ' × ideological affinity (−1…+1), + ' + E.BLOC_FIT + ' in a shared bloc'],
+        ['Market economies', Math.round(E.PRIV_TRADE * 100) + '% of trade income is reinvested by merchants (builds factories)'],
+        ['Planned economies', '+' + Math.round(E.PLAN_TRADE * 100) + '% of trade as revenue (state monopoly); routes with market economies ×0.8'],
+        ['Commercial republics', '×1.6, and 55% of trade goes to the treasury'],
+        ['Food imports', 'need a neighbour or a sea route']]) + '<p class="dim" style="font-size:13.5px;margin-top:6px">With the Economy panel open, your routes are drawn on the map with what each one pays.</p>');
+      h += sec('Artillery and bombing', kv([['Artillery barrage', ID.Combat.ABIL.barrage.gold + ' gold, every ' + ID.Combat.ABIL.barrage.cd + ' days, radius ' + ID.Combat.ABIL.barrage.r + ', within ' + ID.Combat.ABIL.barrage.range + ' tiles'], ['Bombing raid', ID.Combat.ABIL.airraid.gold + ' gold, every ' + ID.Combat.ABIL.airraid.cd + ' days, radius ' + ID.Combat.ABIL.airraid.r + ', within ' + ID.Combat.ABIL.airraid.range + ' tiles']]) + '<p style="font-size:14.5px">Troops killed = their troops × ' + ID.Combat.ABIL.barrage.kill + ' (bombing ' + ID.Combat.ABIL.airraid.kill + ') × (their land in the radius ÷ their land), at most ' + ID.Combat.ABIL.barrage.cap * 100 + '% (bombing ' + ID.Combat.ABIL.airraid.cap * 100 + '%), × your kit × technology, ÷ their defence, halved under fortress cover. Against a small state a barrage hits a large share of its army. Bombing does its work on buildings, ±10% damage per level of military technology between you.</p>');
+      h += sec('The bomb', '<ul><li><b>Atomic programme</b>: military technology ' + A.atom.mil + ', ' + A.atom.fac + ' working factories, ' + A.atom.start + ' gold, then ' + Math.round(A.atom.share * 100) + '% of revenue a month until 100 points. Points a month = ' + A.atom.rate + ' × (capacity ÷ ' + A.atom.icRef + ', 0.4–1.6) × (0.8 + 2 × science share). Foreign intelligence learns of it halfway.</li><li><b>Warheads</b>: ' + A.atom.head + ' gold and ' + A.atom.days / 360 + ' years each, one at a time, two per silo.</li><li><b>Thermonuclear programme</b>: the atomic bomb, military technology ' + A.thermo.mil + ', ' + A.thermo.fac + ' factories, ' + A.thermo.start + ' gold, then ' + Math.round(A.thermo.share * 100) + '% of revenue. Devices: ' + A.thermo.head + ' gold and ' + A.thermo.days / 360 + ' years each, one per silo.</li></ul>' + kv([['Atomic bomb', 'destroys all within ' + Bm.atom.r + ', damages to ' + Bm.atom.ring + ', poisons ' + Bm.atom.rad / 12 + ' years'], ['Thermonuclear bomb', 'destroys all within ' + Bm.thermo.r + ', damages to ' + Bm.thermo.ring + ', fallout ' + Bm.thermo.ringRad / 12 + ' years beyond']]));
       return h;
     }
     h += '<p class="lead">You run a state. What it can do follows from what it believes.</p>' +

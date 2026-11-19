@@ -5,6 +5,7 @@
    node tools/metrics.js human   [--runs 10] [--p 0.5]      the player's wars with a human-like proxy
    node tools/metrics.js trees                              programmes and one-playthrough years per country
    node tools/metrics.js tables                             fails if an ideology is missing from a table
+   node tools/metrics.js econ    [--runs 8] [--random]      trade, output spread, equipment, damage, the bomb
    events and pacing are measured on the same runs (historical mode, the player's country played by the AI). */
 'use strict';
 const fs = require('fs'), path = require('path');
@@ -88,6 +89,45 @@ const newWorld = (r) => {
   ID.setPlayer(G, pn.id); if (mode === 'events') G.autoPlayer = true; // the AI answers for the player
   return { G, pn };
 };
+
+if (mode === 'econ') {
+  // structures, industry, trade and the bomb: AI-only worlds (historical, or --random)
+  const S = { trade: { 1925: [], 1950: [], 1970: [] }, top3: [], richMed: [], eq: [], eqLow: [], fac: [], wrecked: [], damaged: [], gold: [], bombY: [], bombStates: [], heads: [], used: [], thermo: [], wars: 0, civil: 0, big: [], alive: [], bombed: [], shelled: [] };
+  for (let r = 0; r < runs; r++) {
+    const { G } = newWorld(r); const firstBomb = {};
+    let wrecked = 0; const orm = ID.removeBuilding; ID.removeBuilding = function (G2, i, skip) { if (!skip && G2.bld[i]) wrecked++; return orm.apply(this, arguments); };
+    const oab = ID.Combat.useAbil; const ab = { barrage: 0, airraid: 0 }; ID.Combat.useAbil = function (G2, n, k) { const w = oab.apply(this, arguments); if (!w && ab[k] != null) ab[k]++; return w; };
+    while (G.tick < years * 360 && !G.over) {
+      ID.Game.tick(G);
+      if (G.tick % 360) continue;
+      const y = ID.yearOf(G.tick), al = ID.alive(G);
+      for (const n of al) if (((n.cnt && n.cnt.nukesBuilt) || n.nukes) && !firstBomb[n.id]) firstBomb[n.id] = y;
+      if (S.trade[y]) S.trade[y].push(al.reduce((s, n) => s + n.tradeInc, 0) / Math.max(1, al.reduce((s, n) => s + n.gdp, 0)));
+    }
+    ID.removeBuilding = orm; ID.Combat.useAbil = oab;
+    const al = ID.alive(G).filter((n) => !n.civilOf), gd = al.map((n) => n.gdp).sort((a, b) => b - a), tot = gd.reduce((s, v) => s + v, 0);
+    S.top3.push((gd[0] + (gd[1] || 0) + (gd[2] || 0)) / tot); S.richMed.push(gd[0] / gd[gd.length >> 1]);
+    S.eq.push(avg(al.map((n) => n.equip))); S.eqLow.push(Math.min(...al.map((n) => n.equip)));
+    S.fac.push(avg(al.map((n) => n.nb[ID.B.FACTORY]))); S.gold.push(avg(al.map((n) => n.gold)));
+    S.wrecked.push(wrecked); S.damaged.push(G.hp ? G.blist.filter((i) => G.hp[i] < 100).length : 0);
+    const ys = Object.values(firstBomb).sort((a, b) => a - b); S.bombY.push(ys.length ? ys[0] : 0); S.bombStates.push(ys.length);
+    S.heads.push(G.nations.filter(Boolean).reduce((s, n) => s + ((n.cnt && n.cnt.nukesBuilt) || 0), 0)); S.used.push(G.world.nuked || 0);
+    S.thermo.push(G.nations.filter((n) => n && n.cnt && n.cnt.thermoBuilt).length);
+    S.bombed.push(ab.airraid); S.shelled.push(ab.barrage);
+    S.wars += G.chronicle.filter((c) => c.type === 'war').length; S.civil += G.chronicle.filter((c) => c.type === 'civilwar').length;
+    let big = al[0]; for (const n of al) if (n.tiles > big.tiles) big = n; S.big.push(big.tiles / G.landCount); S.alive.push(al.length);
+    process.stderr.write('.');
+  }
+  const f = (a, d) => avg(a).toFixed(d == null ? 2 : d);
+  console.log('\n' + (random ? 'random' : 'historical') + ', ' + runs + ' runs, ' + years + ' years');
+  console.log('trade share of output 1925 / 1950 / 1970: ' + [1925, 1950, 1970].map((y) => pct(avg(S.trade[y]))).join(' / '));
+  console.log('output: top three states ' + pct(avg(S.top3)) + ' of the world; richest / median ' + f(S.richMed, 1) + '×');
+  console.log('equipment at the end: average ' + f(S.eq) + ', lowest ' + f(S.eqLow) + '; factories per state ' + f(S.fac, 1) + '; treasury per state ' + f(S.gold, 0));
+  console.log('buildings destroyed per run ' + f(S.wrecked, 1) + ', damaged at the end ' + f(S.damaged, 1) + '; barrages ' + f(S.shelled, 1) + ', bombing raids ' + f(S.bombed, 1));
+  console.log('first warhead (avg year, runs with one) ' + (S.bombY.filter(Boolean).length ? f(S.bombY.filter(Boolean), 0) : '-') + '; states with warheads ' + f(S.bombStates, 1) + '; warheads built ' + f(S.heads, 1) + '; atomic uses ' + f(S.used, 1) + '; thermonuclear states ' + f(S.thermo, 1));
+  console.log('wars per run ' + (S.wars / runs).toFixed(1) + ', civil wars ' + (S.civil / runs).toFixed(1) + '; largest state ' + pct(avg(S.big)) + ' (max ' + pct(Math.max(...S.big)) + '); alive at the end ' + f(S.alive, 1));
+  process.exit(0);
+}
 
 if (mode === 'human') {
   // the player's nation is not AI-diplomatic: AI enemies treat it as a human (offers, not forced peace);

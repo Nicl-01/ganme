@@ -28,6 +28,113 @@
   };
   E.debtCap = (n) => Math.max(120, n.gdp * 14);
 
+  /* The ideological market. fit: how much a trade route is worth between two systems, from their ideological
+     affinity (−60 … +45) and a shared bloc. */
+  E.ROUTE_K = 0.04; E.PORT_ROUTES = 3; E.OVERLAND = 0.35; E.FIT = 0.3; E.BLOC_FIT = 0.2; E.PLAN_TRADE = 0.4; E.PRIV_TRADE = 0.3; E.ARMS_K = 0.25; E.PLAN_ARMS = 1.2; E.IMPORT_SHARE = 0.25;
+  /* Kit target from a month's arms money; fills the n.a.arms* figures the interface shows. */
+  E.kitTarget = function (G, n, arms, routes) {
+    const aNeed = Math.max(1, E.army(n) * (G.stats.armsRef || 0.035)), armsCap = E.armsCap(n);
+    const made = Math.min(arms, armsCap);
+    let spare = 0; for (const r of routes || []) if (r.fit >= 1 && G.nations[r.o]) spare += G.nations[r.o].a.icSpare || 0;
+    const impCap = Math.min(aNeed * E.IMPORT_SHARE, spare);
+    const imp = n.laws.trade === 'autarky' ? 0 : Math.max(0, Math.min((arms - made) / 1.5, impCap));
+    const refill = (made + imp) * (n.a.dp && n.a.dp.equipRegen ? n.a.dp.equipRegen : 1) * (n.a.shortage ? 0.75 : 1), burn = E.warBurn(G, n, aNeed);
+    const eq = clamp(0.62 + 0.38 * Math.max(0, refill - burn) / aNeed, 0.62, 1.35); // where the arsenal settles if nothing changes
+    Object.assign(n.a, { eqTarget: eq, armsPaid: arms, armsNeed: aNeed, armsCap, armsMade: made, armsImp: imp, armsImpCap: impCap, armsWaste: Math.max(0, arms - made - imp * 1.5), refill, burn });
+    return eq;
+  };
+
+  /* ---------------------------------------------------------------- the arsenal
+     A stockpile of equipment. Refilled each month by the arms the factories make (and imports); 1/24 of it ages out each
+     month; war burns it: about a month of the army's needs per month of active fighting (× posture), and the kit of every
+     soldier lost. Kit = 62% + 38% × arsenal ÷ (24 months of needs), at most 135%. Peacetime it settles where the old
+     equipment did; at war, unless the arms flow rises, it drains over about two years. */
+  E.ARS = { life: 24, war: 0.6, idle: 0.3, lossK: 0.25, loot: 0.03, shells: 0.3 };
+  E.POSTURE_BURN = { attack: 1.3, balanced: 1, defend: 0.7, depth: 0.9 };
+  E.active = (G, n) => G.attacks.some((a) => a.to && (a.from === n.id || a.to === n.id));
+  E.warBurn = (G, n, need) => (n.nwars ? need * E.ARS.war * (E.active(G, n) ? 1 : E.ARS.idle) * (E.POSTURE_BURN[n.posture] || 1) : 0);
+  E.army = (n) => (n.a.armyAvg != null ? n.a.armyAvg : n.troops); // army size, smoothed over about a year: a draft dilutes kit gradually
+  E.kitOf = (n, need) => clamp(0.62 + 0.38 * (n.ars || 0) / (E.ARS.life * Math.max(1, need)), 0.62, 1.35);
+  E.initArsenal = (G, n) => { if (n.ars == null) { const need = Math.max(1, n.troops * ((G.stats && G.stats.armsRef) || 0.035)); n.ars = Math.max(0, (n.equip - 0.62) / 0.38) * E.ARS.life * need; } };
+  /* Months of fighting the arsenal can carry at the present flow (Infinity if it is not falling). */
+  E.monthsLeft = (n) => { const net = (n.a.burn || 0) + (n.ars || 0) / E.ARS.life - (n.a.refill || 0); return net > 0.01 ? (n.ars || 0) / net : Infinity; };
+  E.arsenalMonth = function (G, n) {
+    E.initArsenal(G, n);
+    n.a.armyAvg = n.a.armyAvg == null ? n.troops : n.a.armyAvg + (n.troops - n.a.armyAvg) * 0.12;
+    const lost = n.troops > 0 ? n.ars * E.ARS.lossK * Math.min(0.5, (n.casM || 0) / n.troops) : 0; // the kit of the fallen
+    const aged = n.ars / E.ARS.life;
+    n.ars = Math.max(0, n.ars + (n.a.refill || 0) - aged - (n.a.burn || 0) - lost);
+    n.a.arsIn = n.a.refill || 0; n.a.arsAged = aged; n.a.arsLost = lost; n.a.lootM = n.a.loot || 0; n.a.loot = 0; n.a.shellsM = n.a.shells || 0; n.a.shells = 0;
+    n.equip = E.kitOf(n, n.a.armsNeed);
+  };
+  /* After a budget change: show the new target now rather than next month. */
+  E.kitNow = (G, n) => { if (G && n.rev != null && n.a.armsNeed) E.kitTarget(G, n, Math.max(0, n.rev) * n.budget.arms, n.a.routes); };
+  E.fit = (G, n, o) => 1 + E.FIT * clamp(ID.ideoAffinity(n.ideo, o.ideo) / 45, -1, 1) + (ID.sameBloc(G, n.id, o.id) ? E.BLOC_FIT : 0);
+  E.armsCap = (n) => (n.a.ic || 0) * E.ARMS_K * (ID.ideo(n).econ.model === 'plan' || ID.ideo(n).econ.model === 'cyber' ? E.PLAN_ARMS : 1);
+
+  /* ---------------------------------------------------------------- the bomb
+     A programme, then warheads one at a time. Progress per month = rate × (industrial capacity) × (science share). */
+  E.ATOM = {
+    atom: { start: 1200, share: 0.08, need: 100, mil: 6, fac: 8, rate: 1.2, icRef: 120, head: 2000, days: 1080, perSilo: 2 },
+    thermo: { start: 3000, share: 0.15, need: 100, mil: 7, fac: 14, rate: 0.9, icRef: 220, head: 6000, days: 1800, perSilo: 1 },
+  };
+  E.atom = (n) => n.atom || (n.atom = { lv: (n.cnt && n.cnt.nukesBuilt) || n.nukes ? 1 : 0, prog: 0, on: '', make: null }); // old saves: a state that built warheads keeps the bomb
+  const LV = { atom: 1, thermo: 2 };
+  E.atomRate = (n, kind) => { const A = E.ATOM[kind]; return A.rate * clamp((n.a.ic || 0) / A.icRef, 0.4, 1.6) * (0.8 + 2 * (n.budget.science || 0)); };
+  E.atomBlock = function (G, n, kind) {
+    const A = E.ATOM[kind], s = E.atom(n);
+    if (s.lv >= LV[kind]) return kind === 'thermo' ? 'You already have the thermonuclear bomb.' : 'You already have the bomb.';
+    if (s.on) return 'A programme is already running.';
+    if (kind === 'thermo' && s.lv < 1) return 'First you need the atomic bomb.';
+    if (n.tech.mil < A.mil) return 'Needs military technology ' + A.mil + '.';
+    if (ID.nbe(n, B.FACTORY) < A.fac) return 'Needs ' + A.fac + ' working factories (you have ' + Math.floor(ID.nbe(n, B.FACTORY)) + ').';
+    return '';
+  };
+  E.startAtom = function (G, n, kind) {
+    const s = E.atom(n); s.on = kind; s.prog = 0; s.startAt = G.tick; s.leaked = 0;
+    if (n.id === G.player) ID.news(G, (kind === 'thermo' ? 'The thermonuclear programme' : 'The atomic programme') + ' begins. It will take ' + Math.round(E.ATOM[kind].need / Math.max(0.1, E.atomRate(n, kind)) / 12) + ' years at the present pace.', 'eco', n.id);
+  };
+  E.makeBlock = function (G, n, kind) {
+    const A = E.ATOM[kind], s = E.atom(n);
+    if (s.lv < LV[kind]) return kind === 'thermo' ? 'Finish the thermonuclear programme first.' : 'Finish the atomic programme first.';
+    if (s.make) return 'A device is already being built (ready ' + ID.dateOf(s.make.done).short + ').';
+    if (!n.nb[B.SILO]) return 'Build a missile silo first.';
+    const have = kind === 'thermo' ? n.thermo || 0 : n.nukes;
+    if (have >= n.nb[B.SILO] * A.perSilo) return 'Your silos are full: ' + A.perSilo + ' per silo.';
+    return '';
+  };
+  E.startMake = function (G, n, kind) { E.atom(n).make = { kind, start: G.tick, done: G.tick + E.ATOM[kind].days }; };
+  /* Monthly; returns what the programme cost this month. */
+  E.atomMonth = function (G, n, rev) {
+    const s = n.atom; if (!s) return 0;
+    if (s.make && G.tick >= s.make.done) {
+      const k = s.make.kind; s.make = null;
+      if (k === 'thermo') { n.thermo = (n.thermo || 0) + 1; n.cnt.thermoBuilt = (n.cnt.thermoBuilt || 0) + 1; n.threat += 15; }
+      else { n.nukes++; n.cnt.nukesBuilt = (n.cnt.nukesBuilt || 0) + 1; n.threat += 8; }
+      if (n.id === G.player) { ID.news(G, (k === 'thermo' ? 'A thermonuclear device' : 'An atomic warhead') + ' is ready in the silos.', 'good', n.id); ID.sfx(G, 'alarm'); }
+    }
+    if (!s.on) { n.a.atomCost = 0; return 0; }
+    const A = E.ATOM[s.on], cost = Math.max(0, rev) * A.share;
+    n.a.atomCost = cost; n.a.atomStall = n.gold < cost;
+    if (n.a.atomStall) return 0; // no money, no progress this month
+    s.prog += E.atomRate(n, s.on);
+    if (!s.leaked && s.prog >= A.need * 0.5) { // intelligence services find out
+      s.leaked = 1;
+      for (const o of G.nations) if (o && o.alive && o !== n && !ID.sameBloc(G, o.id, n.id)) ID.addOp(G, o.id, n.id, s.on === 'thermo' ? -10 : -6);
+      if (ID.isMajor(G, n) || n.id === G.player) ID.news(G, 'Intelligence services report that ' + n.name + ' is building ' + (s.on === 'thermo' ? 'a thermonuclear weapon.' : 'an atomic bomb.'), 'bad', n.id);
+      if (ID.Press && n.id !== G.player) ID.Press.add(G, { w: 2, kind: 'nuke', a: n.id, title: n.base + ' and the bomb', text: 'Defectors and photographs from the air say that ' + n.name + ' has built a closed city around a ' + (s.on === 'thermo' ? 'second, larger' : 'reactor') + ' project. Its government denies everything. Its neighbours have stopped believing it.' });
+    }
+    if (s.prog >= A.need) {
+      const k = s.on; s.lv = LV[k]; s.on = ''; s.prog = 0; s.testAt = G.tick;
+      n.threat += k === 'thermo' ? 40 : 25; G.world.tension = Math.min(100, G.world.tension + (k === 'thermo' ? 20 : 10));
+      ID.chron(G, 'nuke', n.name + (k === 'thermo' ? ' tests a thermonuclear weapon.' : ' becomes an atomic power.'), n.id);
+      ID.news(G, n.name + (k === 'thermo' ? ' has tested a thermonuclear device. The test island no longer exists.' : ' has tested an atomic bomb.'), 'bad', n.id);
+      if (ID.isMajor(G, n) || n.id === G.player) ID.headline(G, { kicker: k === 'thermo' ? 'A thousand times the first bomb' : 'A new kind of weapon', title: k === 'thermo' ? n.base + ' tests the sun-weapon' : n.base + ' has the bomb', sub: k === 'thermo' ? 'One device can now erase a country. Every capital is in range of someone.' : n.name + ' tests an atomic device. The flash is seen two hundred miles away.', a: n.id, tone: 'bad' });
+      if (n.id === G.player) ID.sfx(G, 'nuke');
+    }
+    return cost;
+  };
+
   /* Congress of councils sets the budget (council model). */
   E.congress = function (G, n) {
     const I = ID.ideo(n); const b = Object.assign({ welfare: 0, security: 0, science: 0, arms: 0, heavy: 0 }, I.budget);
@@ -35,6 +142,7 @@
     else if (n.a.threatened) { b.arms += 0.07; b.welfare -= 0.03; }
     if (n.famine) { b.welfare += 0.05; b.science -= 0.03; }
     if (n.fs.workers < 45) { b.welfare += 0.05; b.arms -= 0.02; }
+    const mo = n.a.mot || {}; for (const c of CATS) b[c] += mo[c] || 0; // motions the congress has passed stay passed
     for (const c of CATS) b[c] = clamp(b[c], 0, 0.45);
     n.budget = b; n.motions = 0;
   };
@@ -44,6 +152,8 @@
     if (n.budget[from] < 0.04) return 'Nothing left to move from there.';
     if (to === 'security' && ID.ideo(n).family === 'anarchist') return 'The federation will not fund a security apparatus.';
     n.auth -= 10; n.motions++; n.budget[from] -= 0.04; n.budget[to] = clamp(n.budget[to] + 0.04, 0, 0.5);
+    const mo = n.a.mot || (n.a.mot = {}); mo[from] = (mo[from] || 0) - 0.04; mo[to] = (mo[to] || 0) + 0.04;
+    E.kitNow(G, n); // the new target shows at once
     return '';
   };
 
@@ -90,6 +200,31 @@
     const labor = clamp(workers / (n.pop * 0.94), 0.4, 1.03);
     const strike = n.strike > 0 ? 0.7 : 1;
 
+    /* trade: one route per treaty. Value = (0.8 + 0.04 × the smaller output) × reach × ideological fit.
+       Neighbours trade overland at full reach; others by sea through a working port at each end (each port carries
+       three routes at full value), or overland through third countries at 35%. */
+    const planned = model === 'plan' || model === 'cyber', routes = [];
+    let nt = 0, sea = 0;
+    const PC = ID.nbe(n, B.PORT);
+    for (const o of G.nations) {
+      if (!o || !o.alive || o === n) continue;
+      const d = G.dip[ID.dkey(n.id, o.id)]; if (!d || !d.trade || d.war) continue;
+      nt++;
+      const border = ID.borders(G, n.id, o.id) > 0, fit = E.fit(G, n, o);
+      const oPlan = ID.ideo(o).econ.model === 'plan' || ID.ideo(o).econ.model === 'cyber';
+      const base = (0.8 + E.ROUTE_K * Math.min(n.prod || 20, o.prod || 20)) * fit * (planned && !oPlan ? 0.8 : 1);
+      routes.push({ o: o.id, base, fit, border, oPort: ID.nbe(o, B.PORT), port: border ? 0 : Math.min(1, PC, ID.nbe(o, B.PORT)), reach: border ? 1 : E.OVERLAND, v: 0 });
+    }
+    routes.sort((a, b) => b.base - a.base);
+    let seaCap = E.PORT_ROUTES * PC, trade = 0;
+    for (const r of routes) {
+      if (!r.border && r.port > E.OVERLAND && seaCap > 0) { const use = Math.min(1, seaCap); seaCap -= use; r.reach = E.OVERLAND + (r.port - E.OVERLAND) * use; r.sea = 1; sea++; }
+      r.v = r.base * r.reach; trade += r.v;
+    }
+    const tradeK = tradeLaw.trade * (model === 'trade' ? 1.6 : 1) * (1 + ID.mod(n, 'trade')) * (n.depression ? 0.7 : 1);
+    trade *= tradeK; for (const r of routes) r.v *= tradeK;
+    n.tradeInc = trade; n.ntrade = nt; n.a.routes = routes; n.a.seaRoutes = sea;
+
     /* agriculture and food */
     let food = n.foodLand * (1 + 0.09 * n.tech.agr) * landLaw.food * labor * (1 + ID.mod(n, 'food'));
     if (e.rural) food *= 1.15;
@@ -99,7 +234,7 @@
     if (rec.harvest && n.mob > 0.05) food *= 1 - (n.mob - 0.05) * 2;
     const need = Math.max(1, n.pop * 0.24);
     let bal = food / need, importCost = 0;
-    if (bal < 1 && n.laws.trade !== 'autarky' && n.ntrade > 0 && n.gold > 20) {
+    if (bal < 1 && n.laws.trade !== 'autarky' && routes.some((r) => r.border || r.sea) && n.gold > 20) {
       const buy = Math.min(1 - bal, 0.25); importCost = buy * need * 0.011; bal += buy;
     }
     n.foodBal = bal;
@@ -111,25 +246,14 @@
     const agr = food * 0.02;
 
     /* industry */
-    const fac = n.nb[B.FACTORY];
+    /* industrial capacity: what the factories can make, by condition. It is output, and the ceiling on arms. */
+    const fac = ID.nbe(n, B.FACTORY);
     const oreF = clamp(0.78 + n.oreLand / Math.max(1, fac * 55), 0.78, 1.22);
-    let ind = (fac * 12 * (1 + 0.1 * n.tech.ind) * oreF + n.nb[B.CITY] * 6) * labor * strike * (1 + (laborLaw.prod || 0) + (tradeLaw.ind || 0) + ID.mod(n, 'prod'));
+    const ic = fac * 12 * (1 + 0.1 * n.tech.ind) * oreF;
+    n.a.ic = ic; n.a.oreF = oreF;
+    let ind = (ic + ID.nbe(n, B.CITY) * 6) * labor * strike * (1 + (laborLaw.prod || 0) + (tradeLaw.ind || 0) + ID.mod(n, 'prod'));
     if (e.rural) ind *= 0.85;
     n.ind = ind; n.agr = agr;
-
-    /* trade */
-    let trade = 0, nt = 0;
-    const ports = n.nb[B.PORT];
-    for (const o of G.nations) {
-      if (!o || !o.alive || o === n) continue;
-      const d = G.dip[ID.dkey(n.id, o.id)]; if (!d || !d.trade || d.war) continue;
-      nt++;
-      const reach = ID.borders(G, n.id, o.id) || (ports && o.nb[B.PORT]) ? 1 : 0.35;
-      trade += (0.8 + 0.025 * Math.min(n.prod || 20, o.prod || 20)) * reach;
-    }
-    trade *= tradeLaw.trade * (1 + 0.07 * Math.min(ports, 8)) * (model === 'trade' ? 1.6 : 1) * (1 + ID.mod(n, 'trade'));
-    if (n.depression) trade *= 0.7;
-    n.tradeInc = trade; n.ntrade = nt;
 
     /* efficiency by model */
     let eff = e.eff || 1, rev = 0;
@@ -181,6 +305,7 @@
     else if (model === 'cyber') rev = gdp * e.share;
     else if (model === 'council') rev = gdp * e.share * (0.75 + n.particip / 400);
     else if (model === 'manor') rev = (agr * eff * (n.rent / 100) + ind * eff * 0.18 + trade * 0.3) * corrF;
+    if (planned) rev += trade * E.PLAN_TRADE; // the state's foreign-trade monopoly
     rev *= 1 + ID.mod(n, 'rev') + 0.04 * (n.cnt.nationalized || 0);
     if (n.strike > 0) n.strike--;
 
@@ -191,7 +316,8 @@
     const upkeep = n.troops * 0.018 * rec.upkeep + bu + n.tiles * 0.0016 * (1 + n.tiles / 9000);
     let ops = 0; for (const o of n.ops) ops += o.cost;
     const interest = n.debt * 0.006;
-    const exp = welfare + security + science + arms + heavy + upkeep + ops + interest + importCost;
+    const atom = E.atomMonth(G, n, rev);
+    const exp = welfare + security + science + arms + heavy + upkeep + ops + interest + importCost + atom;
     n.rev = rev; n.exp = exp; n.net = rev - exp; n.a.upkeep = upkeep; n.a.secSpend = security;
     n.gold += n.net;
     if (n.gold < 0) {
@@ -207,7 +333,7 @@
 
     /* investment funds: private capital or the plan build factories on their own */
     const facCap = Math.max(2, n.tiles / 55);
-    if (PRIVATE[model]) n.privCap += gdp * (1 - n.tax / 100) * e.invest * Math.pow(n.conf / 100, 1.5) * (n.depression ? 0.3 : 1) * 0.36;
+    if (PRIVATE[model]) n.privCap += gdp * (1 - n.tax / 100) * e.invest * Math.pow(n.conf / 100, 1.5) * (n.depression ? 0.3 : 1) * 0.36 + trade * E.PRIV_TRADE; // merchants reinvest their profits
     else if (heavy > 0) n.privCap += heavy * 1.15;
     const fc = ID.buildCost(G, n, B.FACTORY);
     if (n.privCap >= fc && fac < facCap && !(I.flags.antiIndustry && fac >= n.tiles / 500)) {
@@ -232,9 +358,12 @@
     n.ls += (clamp(ls, 0, 100) - n.ls) * 0.2;
 
     /* equipment */
-    const eq = clamp(0.62 + arms / Math.max(1, n.troops * 0.035) * 0.38, 0.62, 1.35) - (n.a.shortage ? 0.1 : 0);
-    n.equip += (eq - n.equip) * 0.1 * (eq > n.equip && n.a.dp ? n.a.dp.equipRegen : 1);
-    n.a.eqTarget = eq; n.a.armsPaid = arms; n.a.armsNeed = Math.max(1, n.troops * 0.035);
+    /* equipment: arms money buys kit only as fast as the factories can make it (more for a planned economy); the rest
+       can be bought abroad at 1.5× from friendly trade partners with spare capacity, up to a quarter of need. 100% means
+       as much kit per soldier as the world's average army, so it is an arms race: a bigger army or a smaller industry dilutes it */
+    E.kitTarget(G, n, arms, routes);
+    n.a.icSpare = Math.max(0, n.a.armsCap - n.a.armsMade);
+    E.arsenalMonth(G, n);
 
     /* research */
     let pts = science * (1 + pressLaw.sci + (I.flags.sciBonus || 0) - (I.flags.sciPenalty || 0)) * (0.7 + n.fs.intelligentsia / 160) * (1 + ID.mod(n, 'sci'));
@@ -248,7 +377,7 @@
       if (n.sci >= cost) {
         n.sci -= cost; n.tech[n.focus]++;
         if (n.id === G.player) { ID.news(G, 'Research complete: ' + { ind: 'industrial', mil: 'military', agr: 'agricultural' }[n.focus] + ' technology ' + n.tech[n.focus] + '.', 'good', n.id); ID.sfx(G, 'good'); }
-        if (n.focus === 'mil' && n.tech.mil === 6) { ID.news(G, n.name + ' has tested an atomic device.', 'bad', n.id); ID.chron(G, 'nuke', n.name + ' becomes an atomic power.', n.id); }
+        if (n.focus === 'mil' && n.tech.mil === 6 && n.id === G.player) ID.news(G, 'Our physicists say an atomic bomb is possible. It would take years and a great industry: see Strategic weapons on the War panel.', 'good', n.id);
       }
     } else { n.a.techCost = 0; if (n.sci > 400) n.sci = 400; }
 

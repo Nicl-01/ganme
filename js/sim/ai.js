@@ -30,7 +30,8 @@
     if (e.model === 'council') return;
     if (I.flags.fiveYear) { if (!n.plan && n.auth >= 15) ID.Events.runDecision(G, n, 'five_year_plan'); if (n.plan) return; }
     const b = Object.assign({ welfare: 0, security: 0, science: 0, arms: 0, heavy: 0 }, base);
-    if (n.nwars) { b.arms += 0.14; b.welfare -= 0.04; b.science -= 0.03; }
+    if (n.nwars) { b.arms += 0.14; b.welfare -= 0.04; b.science -= 0.03; if (ID.Economy.monthsLeft(n) < 12) { b.arms += 0.08; b.welfare -= 0.04; } }
+    else if (n.equip < 0.9 && n.gold > 200) b.arms += 0.05; // restock after a war
     else if (n.a.threatened) { b.arms += 0.07; b.science -= 0.02; }
     if (n.fs.workers < 40 || n.fs.peasants < 38) b.welfare += 0.06;
     if (n.coupRisk > 0.01) { b.arms += 0.05; b.security += 0.03; }
@@ -82,15 +83,26 @@
     let pending = 0; for (const q of G.builds) if (q.owner === n.id) pending++;
     if (pending >= (n.gold > 700 ? 4 : 2)) return;
     const can = (type) => n.gold > ID.buildCost(G, n, type) * 1.25 + (n.nwars ? 60 : 20);
+    // wrecks first: half price, half the time
+    if (n.a.wrecks) for (const t of [B.FACTORY, B.CITY, B.PORT, B.FORT, B.SILO]) {
+      const i = G.blist.find((j) => G.bld[j] === t && !G.hp[j] && G.owner[j] === n.id && !ID.canRebuild(G, n, j));
+      if (i != null && n.gold > ID.rebuildCost(G, n, i) * 1.5 + 40) { ID.startRebuild(G, n, i); return; }
+    }
     const worst = n.a.worst ? G.nations[n.a.worst] : null;
     if (worst && worst.alive && n.nb[B.FORT] < 1 + n.tiles / 800 && can(B.FORT) && G.rng.chance(0.6)) { const i = borderTile(G, n, worst); if (i >= 0) { ID.startBuild(G, n, i, B.FORT); return; } }
     const era = ID.eraOf(G.tick);
     if (era >= 2 && n.tech.mil >= 4 && n.nb[B.SILO] < 2 && n.gold > 900) { const s = ID.spotNear(G, n.capital, n.id, 12); if (s >= 0) { ID.startBuild(G, n, s, B.SILO); return; } }
+    // the bomb: only great powers, or a state facing one that has it, and only when rich; slow either way
+    const at = ID.Economy.atom(n), major = ID.isMajor(G, n), menaced = worst && worst.alive && (worst.nukes > 0 || (worst.thermo || 0) > 0);
+    if (!at.on && at.lv === 0 && n.tech.mil >= 6 && (major || menaced) && n.gold > 2500 && G.rng.chance(major ? 0.06 : 0.015)) ID.Events.runDecision(G, n, 'atom_programme');
+    else if (!at.on && at.lv === 1 && n.tech.mil >= ID.Economy.ATOM.thermo.mil && major && n.gold > 6000 && G.rng.chance(0.03)) ID.Events.runDecision(G, n, 'thermo_programme');
     if (n.nb[B.SILO]) {
-      if (n.tech.mil >= 6 && n.nukes < 2 && n.gold > 1800) ID.Events.runDecision(G, n, 'build_nuke');
+      if (at.lv >= 2 && (n.thermo || 0) < 1 && n.gold > 9000) ID.Events.runDecision(G, n, 'build_thermo');
+      else if (at.lv >= 1 && n.nukes < 2 && n.gold > 3500) ID.Events.runDecision(G, n, 'build_nuke');
       else if (n.missiles < 2 && n.gold > 450) ID.Events.runDecision(G, n, 'build_missile');
     }
-    if (n.coastTiles > 8 && n.nb[B.PORT] < (I.flags.navalPower ? 5 : 1 + (n.tiles > 2000 ? 1 : 0)) && can(B.PORT)) {
+    const seaWant = (n.a.routes || []).filter((r) => !r.border && !r.sea && (r.oPort || 0) >= 0.5).length; // treaties stuck overland for want of ports
+    if (n.coastTiles > 8 && (n.nb[B.PORT] < (I.flags.navalPower ? 5 : 1 + (n.tiles > 2000 ? 1 : 0)) || (seaWant >= 2 && n.nb[B.PORT] < 6)) && can(B.PORT)) {
       for (let t = 0; t < 200; t++) { const i = G.rng.int(0, G.N - 1); if (G.owner[i] === n.id && G.coast[i] && !G.bld[i]) { ID.startBuild(G, n, i, B.PORT); return; } }
     }
     const cap = ID.popCap(n);
@@ -304,7 +316,7 @@
       if (d.nap) { if (I.dip.agg > 0.65 && op < -30 && ratio > 1.6) s -= 0.35; else continue; }
       if (!ID.borders(G, n.id, o.id)) s -= 0.7;
       if (o.id === G.player) s = s * diffA + (diffA - 1) * 0.3;
-      if (o.nukes > 0 && n.nukes === 0) s -= 0.5;
+      if ((o.nukes > 0 || o.thermo > 0) && n.nukes === 0) s -= o.thermo > 0 ? 0.9 : 0.5;
       if (G.historical && ID.yearOf(G.tick) < 1939) s -= 0.45;
       else if (G.historical && ID.yearOf(G.tick) >= 1946) s -= 0.15; // the cold war is fought by proxies (sim/sovereignty.js)
       if (s > bs) { bs = s; best = o; bcb = cb; }
@@ -372,7 +384,16 @@
       const myAt = G.attacks.filter((a) => a.from === n.id && a.to && a.heap.size);
       if (myAt.length) {
         const a = myAt[G.rng.int(0, myAt.length - 1)], v = a.heap.v, t = v[G.rng.int(0, v.length - 1)];
-        if (G.owner[t] === a.to) { if (n.tech.mil >= 3 && n.gold > 220 && !C.abilBlock(G, n, 'airraid', t)) C.useAbil(G, n, 'airraid', t); else if (!C.abilBlock(G, n, 'barrage', t)) C.useAbil(G, n, 'barrage', t); }
+        if (G.owner[t] === a.to) {
+          // bombers go for the factories, ports and cities behind the front; guns for the line, fortresses first
+          let bt = -1;
+          if (n.tech.mil >= 3 && n.gold > 220 && (n.cd.ab_airraid || 0) <= G.tick) {
+            const W = G.W, tx = t % W, ty = (t / W) | 0, cand = G.blist.filter((i) => G.owner[i] === a.to && G.hp[i] && (G.bld[i] === B.FACTORY || G.bld[i] === B.PORT || G.bld[i] === B.CITY) && Math.hypot((i % W) - tx, ((i / W) | 0) - ty) < 50);
+            if (cand.length) bt = G.rng.pick(cand);
+          }
+          if (bt >= 0 && !C.abilBlock(G, n, 'airraid', bt)) C.useAbil(G, n, 'airraid', bt);
+          else { let st = t; for (let k = 0; k < 6; k++) { const u = v[G.rng.int(0, v.length - 1)]; if (G.owner[u] === a.to && G.fortCov[u] === a.to) { st = u; break; } } if (!C.abilBlock(G, n, 'barrage', st)) C.useAbil(G, n, 'barrage', st); }
+        }
       }
       if (losing && n.gold > 150 && !C.abilBlock(G, n, 'reserves')) C.useAbil(G, n, 'reserves');
       // the doctrine's own order
@@ -393,10 +414,12 @@
       }
     }
     // strategic weapons
-    if (n.nb[B.SILO] && (n.missiles > 0 || n.nukes > 0) && G.tick % 20 === 0) {
+    if (n.nb[B.SILO] && (n.missiles > 0 || n.nukes > 0 || n.thermo > 0) && G.tick % 20 === 0) {
       const avenge = n.a.nukedBy && G.nations[n.a.nukedBy] && G.nations[n.a.nukedBy].alive && G.tick - n.a.nukedAt < 720 ? G.nations[n.a.nukedBy] : null;
       for (const e of enemies) {
-        const useNuke = n.nukes > 0 && (avenge === e || (losing && I.dip.agg > 0.5 && (e.nukes === 0 || n.tiles < (n.a.warTiles || n.tiles) * 0.6)));
+        const dying = losing && n.tiles < (n.a.warTiles || n.tiles) * 0.45;
+        const useNuke = n.thermo > 0 && (avenge === e || (dying && I.dip.agg > 0.6)) ? 'thermo'
+          : n.nukes > 0 && (avenge === e || (losing && I.dip.agg > 0.5 && (e.nukes === 0 || n.tiles < (n.a.warTiles || n.tiles) * 0.6))) ? 'atom' : '';
         if (!useNuke && n.missiles < 1) continue;
         let tgt = -1; for (const i of G.blist) if (G.owner[i] === e.id && (G.bld[i] === B.CITY || G.bld[i] === B.FORT || G.bld[i] === B.SILO) && typeof C.canMissile(G, n, i, useNuke) !== 'string') { tgt = i; if (G.rng.chance(0.4)) break; }
         if (tgt >= 0) { C.launchMissile(G, n, tgt, useNuke); break; }

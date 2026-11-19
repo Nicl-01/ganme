@@ -384,7 +384,7 @@
       { id: 'tc_project', name: 'A grand project', desc: 'A dam, a canal or a city, designed in a year and built in five.', cost: { gold: 150 }, cd: 48, sig: 12, fx: [['mod', 'prod', 0.05, 60, 'Grand project'], ['sup', 'workers', 3]], ai: (n) => n.gold > 350 },
       { id: 'tc_publish', name: 'Publish the projections', desc: 'Five-year forecasts for every sector, in plain figures, in every newspaper.', cost: {}, cd: 24, sig: 8, can: (n) => (n.crises > 1 ? 'Not while the figures are this bad.' : ''), fx: [['particip', 4], ['sup', 'intelligentsia', 4]], ai: (n, v) => v < 60 },
     ],
-    war: { name: 'Precision', desc: 'Barrages and air raids cost 40% less, strike a third harder and come round sooner; attacks lose 5% fewer men.', dp: { precision: 1, aloss: 0.95 } },
+    war: { name: 'Precision', desc: 'Barrages and bombing raids cost 40% less, strike a third harder and come round sooner; attacks lose 5% fewer men.', dp: { precision: 1, aloss: 0.95 } },
     order: { key: 'op_research', name: 'Operational research', gold: 40, cd: 240, self: 1,
       desc: 'Mathematicians at every headquarters: convoys, barrages and assaults are planned by numbers. For two months attacks lose a quarter fewer men.',
       run: (G, n) => { ID.addMod(n, 'aloss', -0.25, 2, 'Operational research'); return 'The operational research teams take over the planning.'; }, ai: (G, n) => true },

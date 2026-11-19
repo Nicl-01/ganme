@@ -115,8 +115,13 @@ machine, change it in **Settings**.
   hinterland. Every state pushes into it with troops, no war needed, until the borders close.
 - **OpenFront-style war**: fronts advance tile by tile by troop density, terrain, rivers and
   forts; five attack styles; naval landings and settler landings; encircled pockets surrender;
-  artillery barrages, air raids and emergency call-ups; missiles and atomic weapons with
-  political costs.
+  artillery barrages against the line and its forts, bombing raids against factories, ports and
+  cities, and emergency call-ups; missiles; a slow, costly atomic programme and, very late, a
+  thermonuclear one.
+- **Buildings that matter**: cities, factories, ports, fortresses and silos are damaged by capture,
+  shelling and bombing, mend over time and can be rebuilt. Factories set your industrial capacity,
+  which caps the arms your army can be given; ports carry overseas trade; every trade route is worth
+  more between kindred systems. The handbook page "Industry, trade and the bomb" gives every formula.
 - **War you can see and hear**: shell bursts and smoke along every front, attack arrows with
   troop counts, captured-tile counters, screen shake, a generative score that turns martial in
   wartime, and newspaper front pages for wars, revolutions, fallen capitals and new eras.

@@ -606,11 +606,21 @@
     show: (n) => !!I(n).elections && !n.emergency, fx: [['fn', (G, n) => { n.electionAt = G.tick + 60; }], ['note', 'Polling day in two months', null]] });
   dec({ id: 'name_heir', name: 'Name an heir', desc: 'Settle the succession while you still can. Rivals will not thank you.', cost: { auth: 20 }, cd: 60,
     show: (n) => !!I(n).flags.succession && !n.flags.heir, fx: [['flag', 'heir'], ['sup', 'military', -5], ['sup', 'bureaucracy', -4]] });
-  dec({ id: 'build_missile', name: 'Build a missile', desc: 'A conventional missile for your silos.', cost: { gold: 120 }, cd: 2, decree: false,
+  dec({ id: 'build_missile', hidden: 1, name: 'Build a missile', desc: 'A conventional missile for your silos.', cost: { gold: 120 }, cd: 2, decree: false,
     show: (n) => n.nb[5] > 0, fx: [['fn', (G, n) => { n.missiles++; }], ['note', 'Missiles +1']] });
-  dec({ id: 'build_nuke', name: 'Build an atomic warhead', desc: 'Needs military technology 6. A warhead takes a year and a half of the whole atomic industry’s work, and each silo can hold two. Using one will change how the whole world sees you.', cost: { gold: 900 }, cd: 18, decree: false,
-    show: (n) => n.nb[5] > 0 && n.tech.mil >= 6, can: (n) => (n.nukes >= n.nb[5] * 2 ? 'Your silos are full: two warheads each.' : ''),
-    fx: [['fn', (G, n) => { n.nukes++; n.cnt.nukesBuilt = (n.cnt.nukesBuilt || 0) + 1; }], ['note', 'Atomic warheads +1'], ['threat', 8]] });
+  const Ec = () => ID.Economy, AT = (k) => ID.Economy.ATOM[k];
+  dec({ id: 'atom_programme', hidden: 1, name: 'Start an atomic programme', desc: 'Closed cities, a reactor, the best physicists in the country and a great part of its industry. It takes 1,200 gold now, then 8% of revenue every month for years: the more factories and the larger the science budget, the sooner it ends. Other governments will find out halfway.', cost: { gold: 1200 }, cd: 1, decree: false,
+    show: (n) => n.tech.mil >= 4 && !(n.atom && (n.atom.lv >= 1 || n.atom.on)), can: (n, G) => Ec().atomBlock(G, n, 'atom'),
+    fx: [['fn', (G, n) => Ec().startAtom(G, n, 'atom')], ['note', 'The atomic programme begins'], ['threat', 6]] });
+  dec({ id: 'thermo_programme', hidden: 1, name: 'Start a thermonuclear programme', desc: 'A bomb that uses an atomic bomb as its fuse: a thousand times the first. 3,000 gold now, then 15% of revenue a month for most of a decade. Needs military technology 7 and 14 working factories.', cost: { gold: 3000 }, cd: 1, decree: false,
+    show: (n) => !!(n.atom && n.atom.lv === 1 && !n.atom.on) && n.tech.mil >= 6, can: (n, G) => Ec().atomBlock(G, n, 'thermo'),
+    fx: [['fn', (G, n) => Ec().startAtom(G, n, 'thermo')], ['note', 'The thermonuclear programme begins'], ['threat', 12]] });
+  dec({ id: 'build_nuke', hidden: 1, name: 'Build an atomic warhead', desc: 'Three years of the whole atomic industry’s work for one weapon. Each silo holds two. Using one will change how the whole world sees you.', cost: { gold: 2000 }, cd: 1, decree: false,
+    show: (n) => !!(n.atom && n.atom.lv >= 1), can: (n, G) => Ec().makeBlock(G, n, 'atom'),
+    fx: [['fn', (G, n) => Ec().startMake(G, n, 'atom')], ['note', 'An atomic warhead, ready in three years'], ['threat', 8]] });
+  dec({ id: 'build_thermo', hidden: 1, name: 'Build a thermonuclear device', desc: 'Five years and 6,000 gold for a weapon that can erase a country. Each silo holds one.', cost: { gold: 6000 }, cd: 1, decree: false,
+    show: (n) => !!(n.atom && n.atom.lv >= 2), can: (n, G) => Ec().makeBlock(G, n, 'thermo'),
+    fx: [['fn', (G, n) => Ec().startMake(G, n, 'thermo')], ['note', 'A thermonuclear device, ready in five years'], ['threat', 15]] });
   dec({ id: 'hire_mercs', name: 'Hire companies', desc: 'Buy soldiers on the open market.', cost: { gold: 100 }, cd: 1, decree: false,
     show: (n) => !!ID.RECRUIT[n.laws.recruit].hire, can: (n) => (n.troops >= n.pop * ID.maxMob(n) ? 'You are at your mobilisation ceiling.' : ''),
     fx: [['fn', (G, n) => { n.troops = Math.min(n.pop * ID.maxMob(n), n.troops + Math.max(40, n.pop * 0.008)); }], ['note', 'Troops arrive at once']] });

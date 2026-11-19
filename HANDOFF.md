@@ -28,7 +28,7 @@ people want to keep playing. Prioritise legibility, performance, and a clear rea
 | AI-vs-AI balance | three passes done; see "Balance" |
 | Fonts (`fonts/`, Barlow + Barlow Condensed, OFL) | copied in |
 | UI: `index.html`, `css/style.css`, `js/ui/render.js` (canvas map), `audio.js` (WebAudio synth), `ui.js` (top band, rail, selection card, attack bar, alerts, events, tooltips, keys), `panels.js` (State/Economy/Laws/War/Foreign/World/Handbook), `screens.js` (title, setup, saves, settings, challenges, records, end screens), `tutorial.js` (coach as Cassine), `main.js` (loop, pointer input) | written, loads with no console errors in headless Chrome |
-| Browser test harness: `/home/claude/scripts/shot.js` (puppeteer-core in /tmp/pp; serve with `python3 -m http.server 8765` from the project root) | working |
+| Browser test harness: `/home/claude/scripts/shot.js` (puppeteer-core in /tmp/pp; serve with `python3 -m http.server 8765` from the project root) | working (session 11 used the desktop app's browser pane with a small static server instead) |
 | Browser passes (session 2): title, setup, all panels, tutorial to the war step, save/load round trip, forced defeat post-mortem, chronicle, retry, victory — no console errors. Perf in 1944 at speed 5: every frame on the 60fps budget, a month of sim 2–5 ms, save 158 KB | done |
 | README, zip, publish | done at the end of session 2 (see below) |
 
@@ -39,6 +39,8 @@ node tools/simulate.js --runs 5 --years 66            # full AI-vs-AI campaigns,
 node tools/simulate.js --runs 1 --years 20 --verbose  # with 6-yearly snapshots
 node tools/probe.js 5 18 meridia                      # per-nation internals every 6 years
 node tools/fates.js ml,agrarian,trot 66               # why did states of these ideologies end?
+node tools/structures.js                              # self-check: buildings, forts, trade, arms, the bomb, saves
+node tools/metrics.js econ --runs 8 [--random]        # trade share, output spread, kit, damage, the bomb
 ```
 
 A 66-year campaign on the standard map takes about 5 seconds in Node. `/usr/bin/google-chrome`
@@ -156,7 +158,7 @@ most common end states.
 Known soft spots to revisit once a human-facing build exists:
 - some worlds have a single country that relapses into civil war repeatedly
 - the social-democrat objective (living standards ≥ 82) may be too easy; check thresholds
-- rich AI states can hoard gold
+- rich AI states can hoard gold (worse after session 11's richer trade: ~51K per state at the end)
 - player-side difficulty has only been reasoned about, not played: run soak tests with
   `G.autoPlayer` on a chosen nation and read the post-mortems
 
@@ -607,6 +609,135 @@ and an old one in the AI's coup targeting when every candidate has stability 100
 dispatch settled by the ministers, every panel and the handbook page rendered, the programme tree, save/load
 (330 KB) with oil, Canal and fronts restored, no console errors. Not seen in the browser: the oil marks on the
 map, a superevent of the Old Lands, a nationalisation crisis or union from the player's side.
+
+## Session 11: structures, industry, trade, artillery and bombing, the bomb
+
+Brief (session 1 of 2): buildings that can be damaged, destroyed and rebuilt; fortresses with a visible, numeric
+effect; industry with a real output; ports that carry trade; trade and industry that are ideological in real numbers;
+a revision of artillery and bombing; an atomic bomb that is scarce, slow, costly and much stronger, plus a very late
+thermonuclear bomb. The user also asked that none of it be hidden: they had played several runs without noticing
+how well supplied their army was. **Session 2 (not done): cities replace the provincial "primary opposition"**
+(`Pr.opp` / `Pr.oppStr` feed uprisings, civil wars, secession, liberation wars, subversion ops, three arcs, doctrine
+actions, programmes, the Opposition map mode and the save format; see the plan in the session log).
+
+- **Condition** (`sim/world.js`): `G.hp` (Uint8, 0–100, saved as `hp`; saves without it load at 100) for every
+  building tile. `ID.damage(G, i, pts)`, `ID.structMonth(G, countOnly)` (monthly, first thing in `Game.month`: repairs
+  +6 a month in peace, +2 at war, ×0.5–1.5 with industrial capacity, paid 0.5% of base cost per point; fills
+  `n.a.nbe[type]` = buildings counted by condition, `n.a.wrecks`, `n.a.damaged`, `n.a.repairPaid`), `ID.nbe(n, t)` (falls
+  back to `n.nb` for states made mid-month). A wreck (hp 0) keeps its tile and type and does nothing:
+  `ID.canRebuild` / `ID.startRebuild` (half price, half time; `G.builds` entry with `re: 1`). Capture in war
+  (`setOwner` while `warM` is set) costs `ID.CAPTURE_DMG` (city 30, port and factory 40; forts and silos are still
+  destroyed). `n.nb` still counts every building, wrecks included (it sets build prices); everything that *does*
+  something reads `ID.nbe`: output, population capacity, sea power, sea routes, the bomb's factory requirement.
+- **Fortresses**: `G.fortQ` holds the condition of the strongest fort covering each tile (`recomputeForts`);
+  `ID.FORT = { cost: 0.8, loss: 1.5, shelter: 0.5 }`, `ID.fortFx(G, i, style)` gives speed/loss/shelter multipliers
+  after the style's `ignoreFort` (recomputes cover first if it is dirty). Same full-strength numbers as before
+  (×1.8 progress cost, ×2.5 losses), now scaled by condition; new: shelling and bombing kill half as many under cover.
+- **Industry** (`sim/economy.js`): `n.a.ic` = factories by condition × 12 × (1 + 0.1 × ind tech) × ore. Arms:
+  `E.armsCap(n)` = ic × 0.25 (×1.2 planned); arms money beyond it buys abroad at 1.5× from trade partners with fit ≥ 1
+  and spare capacity (`n.a.icSpare`), up to a quarter of need; autarky buys nothing.
+- **The arsenal** (`E.ARS`, `E.arsenalMonth`, `E.kitTarget`; `n.ars`, saved with the nation; old saves and new states
+  get one from their kit via `E.initArsenal`). Kit is no longer a gauge drifting toward a budget ratio (the first
+  session-11 version; the user found it "not a fun mechanic"): it is a stock. In: arms made + bought each month
+  (`n.a.refill`), depots captured with enemy factories and cities (3% of their arsenal each, in `setOwner`). Out: 1/24
+  ages out monthly; at war `E.warBurn` = 0.6 × a month's needs × posture (attack 1.3, balanced 1, dig in 0.7, elastic
+  0.9; ×0.3 with no front moving); the kit of the fallen (arsenal × 0.25 × casualties ÷ troops); shells for every
+  barrage, raid or doctrine order (30% of its gold). Kit = 62% + 38% × arsenal ÷ (24 × need), 62–135%; need = army
+  size smoothed over ~a year (`E.army`) × `G.stats.armsRef` (world arms per soldier, drifting 5% a month). Peace
+  settles where the old formula did; a great-power war drains it over 1–2 years (Aurelia and Karsova from the high 80s
+  to ~68% in 1914–16, rebuilt after). `E.monthsLeft(n)`. AI adds 8% arms when an arsenal will run dry within a year,
+  and restocks after a war. Council congresses keep arms motions they passed (`n.a.mot`); budget changes and motions
+  show the new target at once (`E.kitNow`); countries start at the kit they can keep.
+- **Trade**: one route per treaty in `n.a.routes` (`{o, base, fit, border, oPort, port, reach, sea, v}`). Value =
+  (0.8 + `E.ROUTE_K` 0.04 × the smaller output) × reach × fit × law. Neighbours full reach; others through a working
+  port at each end, `E.PORT_ROUTES` = 3 per port at full value, the rest overland at `E.OVERLAND` 35% (the old flat
+  +7%-per-port bonus is gone). Fit `E.fit` = 1 + 0.3 × affinity/45 (clamped ±1) + 0.2 in a shared bloc. Who keeps it:
+  market economies reinvest 30% of trade (`E.PRIV_TRADE`, into `privCap`); planned economies add 40% of trade to
+  revenue (`E.PLAN_TRADE`) and value routes with market economies at ×0.8; commercial ×1.6 as before. Food imports
+  need a neighbour or sea route. The AI builds ports when treaties are stuck overland.
+- **Artillery and bombing** (`sim/combat.js` `C.ABIL`): kills = their troops × kill × (their land in the radius ÷
+  their land), capped, × your kit × tech, ÷ their defence, × fortress shelter; per-type condition damage `dmg`.
+  Barrage (kill 0.6, cap 3%): forts −50, others −15, the shaken zone as before. "Bombing raid" (renamed from air raid;
+  kill 0.15, cap 1%): factories and ports −40, cities −30 with civilian deaths and war weariness, forts −15, silos −20,
+  ±10% per military tech level between the two sides. The AI bombs factories, ports and cities within 50 tiles of
+  its front and shells forts first. Each strike reports what it hit (news line, floating text on the map).
+- **The bomb**: `E.ATOM` and `E.atom(n)` → `n.atom = {lv, on, prog, make, leaked}` (old saves: a state that built
+  warheads keeps lv 1). Decisions (hidden from the State list, shown on the War panel): `atom_programme` (mil 6, 8
+  working factories, 1,200 gold, then 8% of revenue a month; progress 1.2 × (ic/120, 0.4–1.6) × (0.8 + 2 × science
+  share) a month to 100; foreign intelligence learns at 50), `build_nuke` (2,000 gold, 3 years, one at a time, two per
+  silo), `thermo_programme` (lv 1, mil 7, 14 factories, 3,000 + 15% of revenue), `build_thermo` (6,000, 5 years, one
+  per silo; `n.thermo`). `E.atomMonth` pays and advances (in `Economy.month`'s spending). The 1945 story chapter
+  `sunrise` grants lv 1. `C.BOMB.atom` (destroys all within 12, ring to 18 at −50, rad 20 years, deaths 2.8 × the
+  share of the country's people in the blast, at most 60%) and `C.BOMB.thermo` (22 / 34 at −70 with fallout for 10
+  years, deaths 3.2 ×, at most 90%; world opinion −60, threat +120). Missiles unchanged. AI: majors (and states facing
+  a nuclear enemy) start programmes when rich; thermonuclear devices are used only when dying or avenging.
+- **Shown, not hidden** (`ui/ui.js`, `ui/panels.js`, `ui/render.js`, `ui/advice.js`): the arsenal card at the top of
+  the War panel (store, months of needs, net flow, every flow in and out in its tooltip `UI.kitText`), months of war
+  left in the top band and an "Arsenal running dry" alert at war, the enemy's kit and months left on its tile card and
+  in the war list; top band (Troops shows
+  `kit N%` with ▲/▼, Industry shows wrecks; both tooltips give the formula and the limiting factor), tile card
+  (`UI.bldCard`: condition, what the building does now in numbers, repair rate and cost, Rebuild button; fortress
+  cover row with speed/loss multipliers and a tooltip for each style; atomic and thermonuclear strike buttons with
+  `UI.bombTip`), map (condition bars under damaged buildings, crossed-out grey wrecks, dashed fortress-cover rings for
+  your forts and your enemies', blast and fallout rings, strike results floating over the target, trade routes drawn
+  from your capital with their value while the Economy panel is open), Economy panel (industrial capacity, a Trade
+  section listing each route's reach, fit and value, the Built section with wrecked/damaged counts and "Rebuild every
+  wreck"), War panel (`weaponsCard`: programme progress, pace, monthly cost, stall and leak; warhead production),
+  alerts (short of kit at war; wrecked buildings), the Report (kit, wrecks, stalled programme) and a Handbook page,
+  "Industry, trade and the bomb", with every formula.
+- Tools: `node tools/structures.js` (33 checks: damage, repair, wreck and rebuild, capture, fort numbers, a barrage
+  on a fort, ports and sea trade, the arms cap, the programme, warhead production, both bombs, save round trip, an
+  old save without `hp`/`atom`), `node tools/metrics.js econ [--random]` (trade share, output spread, kit, damage,
+  the bomb, wars).
+
+Before/after, same tools and seeds (`metrics.js econ`/`pacing`/`human` 8 runs, `simulate.js` 9 runs, `soak.js meridia
+iron auto hist`); "before" was measured on a copy of the session 10 code:
+
+| Measure | Before | After |
+|---|---|---|
+| Trade share of output, historical 1925 / 1950 / 1970 | 25% / 27% / 26% | 30% / 32% / 31% |
+| Trade share of output, random | 12% / 16% / 17% | 16% / 20% / 23% |
+| Output: top three states' share / richest ÷ median (historical) | 35% / 4.5× | 37% / 4.0× |
+| Same, random | 44% / 3.5× | 51% / 4.1× |
+| Kit at the end: average / weakest army (historical) | 1.32 / 0.96 | 1.10 / 0.75 |
+| Same, random | 1.23 / 0.89 | 1.09 / 0.76 |
+| States with warheads / warheads built / first warhead (historical) | 17.4 / 34.3 / 1942 | 5.1 / 9.6 / 1949 |
+| Same, random | 10.4 / 20.1 / 1943 | 4.1 / 7.6 / 1952 |
+| Thermonuclear states per run (historical / random) | — | 0.1 / 0.1 (0.8 in an earlier random pass) |
+| Atomic strikes per run (historical) | 0.4 | 0.0 |
+| Barrages / bombing raids per run (historical) | 540 / 195 | 543 / 199 |
+| Historical: wars / civil wars / peace median / at war (8 runs) | 27.0 / 3.0 / 8.1 y / 7% | 28.5 / 3.3 / 7.1 y / 7% |
+| Historical, 20 runs: wars / civil wars / peace median | 30.0 / 3.1 / 7.3 y | 29.3 / 3.5 / 7.0 y |
+| Historical: largest state avg (max) | 19% (25%) | 20% (25%) |
+| Random (simulate): wars / largest avg (max) | 21.7 / 23% (42%) | 22.2 / 24% (47%) |
+| Human proxy: at war / peace median / fell | 7% / 5.2 y / 3 of 8 | 6% / 6.3 y / 5 of 8 |
+| Soak, AI playing the player (historical): won / survived / fell | 6 / 6 / 12 of 24 | 3 / 10 / 11 of 24 |
+| AI treasury per state at the end (historical / random) | 38.6K / 21.1K | 51.5K / 30.9K |
+
+**After the arsenal** (same tools): kit at the end 1.11 average, 0.73 weakest; historical 20 runs: wars 31.4 (session 10
+code 30.0), civil wars 3.5 (3.1), peace median 6.2 y (7.3), largest 22% (20%), max 28%; human proxy at war 7%, peace
+median 6.9 y, fell 4 of 8; soak won 7 / survived 9 / fell 8 of 24; random: wars 25.6, largest avg 25%, max 56% (one
+run); atomic strikes 0.5 a run. A drained state looks weak to the AI (power uses attack, which uses kit), so wars come
+a little more often and peace spells are about a year shorter. If that is too much, have `considerWar` discount a
+target's low kit, or slow the drain (`E.ARS.war`).
+
+Notes: the 8-run war rise (27 → 28.5) is seed luck; on 20 runs old and new code are level (30.0 / 29.3), and with the
+old kit formula the new code also gave 30.5. Soak outcomes change country by country with any code change (Cassine
+conquered in 1916 before, a winner in 1950 after; Tessaly the reverse); falls are level, wins 6 → 3 on one sample
+each. `metrics.js events` now shows ~60 random dispatches per run against 39 because the AI-played Aurelia and
+Cassine fell within a few years in the old runs (8 and 7 dispatches) and survived in the new ones; the per-survivor
+rate is unchanged (~60–64), max repeats 3 in both. **Gold hoarding got worse** (richer trade, and AI does not spend
+it): a soft spot to fix with an AI spending pass. The AI almost never uses the bomb now (aura, but untested in play).
+
+Tested in the browser pane (1952 Cassine save from a 42-year AI-played historical campaign): Economy panel with the
+trade table and route lines on the map, Built section, tile cards for a fortress (exact numbers), a damaged factory
+(condition, repair rate) and an enemy fort, an enemy bombing raid on our factories (news line, floating text,
+condition bars and a crossed-out wreck on the map, the wreck alert, the Report item), our barrage on an enemy fort, an
+atomic strike from the tile card button (blast, irradiation, headline, news), the War panel's Strategic weapons card,
+the Handbook page, the troops/industry tooltips, every panel opened and six seconds of play with no console errors,
+save and reload through `localStorage`. Also seen: a running thermonuclear programme's card (progress, pace, cost,
+formula tooltip) and a thermonuclear strike from the tile card (51% of Aurelia dead, the region white with
+irradiation). Not seen in the browser: the old-save path (headless only), the AI deciding to use the bomb.
 
 ## Published (end of session 2)
 
