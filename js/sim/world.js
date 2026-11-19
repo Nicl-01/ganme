@@ -224,6 +224,14 @@
     const base = [0, 150, 50, 100, 120, 200][type]; const I = ID.ideo(n);
     return Math.round(base * (I.flags.slowBuild ? 2 : 1) * (type === B.FACTORY && I.econ.model === 'plan' ? 0.8 : 1));
   };
+  /* Cities are places, not a currency: no two within CITY_GAP tiles (wrecks and ones under construction count). */
+  ID.CITY_GAP = 8;
+  ID.tileDist = (G, a, b) => Math.hypot((a % G.W) - (b % G.W), ((a / G.W) | 0) - ((b / G.W) | 0));
+  ID.cityNear = function (G, i) {
+    for (const j of G.blist) if (G.bld[j] === B.CITY && j !== i && ID.tileDist(G, i, j) < ID.CITY_GAP) return j;
+    for (const q of G.builds) if (q.type === B.CITY && q.i !== i && ID.tileDist(G, i, q.i) < ID.CITY_GAP) return q.i;
+    return -1;
+  };
   /* Returns '' when allowed, otherwise the reason. */
   ID.canBuild = function (G, n, i, type) {
     const b = ID.BUILDINGS[type];
@@ -234,6 +242,7 @@
     if (b.needs === 'coast' && !G.coast[i]) return 'A port must be on the coast.';
     if (b.needs === 'mil4' && n.tech.mil < 4) return 'Needs military technology 4.';
     if (type === B.CITY && G.terrain[i] === T.MOUNTAIN) return 'Cities cannot be built on mountains.';
+    if (type === B.CITY) { const c = ID.cityNear(G, i); if (c >= 0) return 'Too close to another city (' + Math.round(ID.tileDist(G, i, c)) + ' tiles; cities must be ' + ID.CITY_GAP + ' apart).'; }
     if (n.gold < ID.buildCost(G, n, type)) return 'Not enough gold (' + ID.buildCost(G, n, type) + ' needed).';
     return '';
   };

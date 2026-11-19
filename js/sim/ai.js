@@ -107,7 +107,7 @@
     }
     const cap = ID.popCap(n);
     if ((n.pop > cap * 0.8 || n.gold > 600) && n.nb[B.CITY] < n.tiles / (n.gold > 600 ? 170 : 260) && can(B.CITY)) {
-      let best = null; for (let p = 1; p < G.provinces.length; p++) { const Pr = G.provinces[p]; if (Pr.owner === n.id && !Pr.nCity && G.owner[Pr.center] === n.id && !G.bld[Pr.center] && G.terrain[Pr.center] !== T.MOUNTAIN && (!best || Pr.fertile * Pr.tiles > best.fertile * best.tiles)) best = Pr; }
+      let best = null; for (let p = 1; p < G.provinces.length; p++) { const Pr = G.provinces[p]; if (Pr.owner === n.id && !Pr.nCity && G.owner[Pr.center] === n.id && !G.bld[Pr.center] && G.terrain[Pr.center] !== T.MOUNTAIN && ID.cityNear(G, Pr.center) < 0 && (!best || Pr.fertile * Pr.tiles > best.fertile * best.tiles)) best = Pr; }
       if (best) { ID.startBuild(G, n, best.center, B.CITY); return; }
     }
     const facMax = I.flags.antiIndustry ? n.tiles / 600 : n.tiles / 85;

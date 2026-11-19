@@ -18,7 +18,13 @@
     const C = G.cty || (G.cty = {});
     if (!C[i]) {
       const rng = new ID.RNG(((G.seed || 1) ^ Math.imul(i + 1, 2654435761)) >>> 0), used = Ct.usedNames(G);
-      const nm = ID.genName(rng, used); C[i] = blank(nm ? nm.base : 'City ' + i); C[i].o = G.owner[i];
+      const nm = ID.genName(rng, used), r = blank(nm ? nm.base : 'City ' + i); r.o = G.owner[i];
+      // a new city grows out of its neighbours: it takes the lean, strength and unrest of the owner's nearest city (else the countryside)
+      let src = null, bd = 1e9;
+      for (const k in C) { const j = +k; if (C[k].o === r.o && G.bld[j] === B.CITY) { const d = ID.tileDist(G, i, j); if (d < bd) { bd = d; src = C[k]; } } }
+      if (!src && G.nations[r.o]) src = G.nations[r.o].rural;
+      if (src) { r.lean = src.lean; r.str = src.str; r.un = src.un; r.from = src.nm; }
+      C[i] = r;
     }
     return C[i];
   };

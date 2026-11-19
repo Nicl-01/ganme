@@ -98,6 +98,18 @@ ok(n.a.armsMade <= n.a.armsCap + 1e-9 && near(n.a.armsCap, (n.a.ic || 0) * ID.Ec
   if (u2) { Ct.act(G, n, u2.key, 'concede'); ok(n.drift[rival] == null ? true : n.drift[rival] > (d0 || 0), 'a concession calms the city and moves the country toward it'); }
   const rg = Ct.rising(G, n, rival); ok(rg.provs.length > 0 && rg.names.length > 0, 'a rising names its cities (' + Ct.list(rg.names) + ') and takes their provinces');
   for (const u of us) { u.r.lean = null; u.r.str = 0; }
+  // spacing and inheritance
+  const W = G.W, T0 = ID.T;
+  const nextTo = (() => { for (let d = 1; d < 4; d++) for (const j of [n.capital + d, n.capital - d, n.capital + d * W]) if (G.owner[j] === n.id && !G.bld[j] && G.terrain[j] !== T0.MOUNTAIN) return j; return -1; })();
+  n.gold = 1e5;
+  ok(nextTo >= 0 && /Too close/.test(ID.canBuild(G, n, nextTo, B.CITY)), 'a city cannot go next to another (' + ID.canBuild(G, n, nextTo, B.CITY) + ')');
+  let far = -1; for (let j = 0; j < G.N && far < 0; j++) if (G.owner[j] === n.id && !G.bld[j] && G.terrain[j] && G.terrain[j] !== T0.MOUNTAIN && !G.rad[j] && ID.canBuild(G, n, j, B.CITY) === '') far = j;
+  ok(far >= 0 && ID.cityNear(G, far) < 0, 'a city ' + ID.CITY_GAP + '+ tiles from the rest can be built');
+  let src = null, bd = 1e9; for (const u of us) if (u.i >= 0) { const d = ID.tileDist(G, far, u.i); if (d < bd) { bd = d; src = u.r; } }
+  src.lean = rival; src.str = 63; src.un = 41;
+  ID.placeBuilding(G, far, B.CITY); const nr = Ct.rec(G, far);
+  ok(nr.lean === rival && nr.str === 63 && nr.un === 41 && nr.from === src.nm, 'a new city takes the lean, strength and unrest of the nearest one (' + src.nm + ')');
+  src.lean = null; src.str = 0;
 }
 
 /* the atomic programme */

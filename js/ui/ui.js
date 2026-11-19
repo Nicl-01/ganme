@@ -340,7 +340,7 @@
   /* A city: its lean, unrest, size, and the three things you can do about it. */
   UI.cityCard = function (G, n, i, own) {
     const Ct = ID.Cities, r = Ct.rec(G, i), u = Ct.units(G, n).find((x) => x.i === i);
-    let h = '<div class="note"' + tip(UI.unitTip(G, n, r)) + '><b>' + esc(r.nm) + '</b>' + (i === n.capital ? ' · the capital' : '') + (u ? ' · ' + Math.round(u.share * 100) + '% of the voice' : '') + '<br>' + UI.leanTxt(n, r) + (r.rally > 0 ? ' · <span class="good">rallying</span>' : '') + (r.court > 0 ? ' · courted' : '') + (r.calm > 0 ? ' · concessions' : '') + '</div>';
+    let h = '<div class="note"' + tip(UI.unitTip(G, n, r)) + '><b>' + esc(r.nm) + '</b>' + (i === n.capital ? ' · the capital' : '') + (u ? ' · ' + Math.round(u.share * 100) + '% of the voice' : '') + '<br>' + UI.leanTxt(n, r) + (r.rally > 0 ? ' · <span class="good">rallying</span>' : '') + (r.court > 0 ? ' · courted' : '') + (r.calm > 0 ? ' · concessions' : '') + (r.from ? '<br><span class="dim">Founded from ' + esc(r.from) + ', it inherited that place’s lean and unrest.</span>' : '') + '</div>';
     if (own && u) h += UI.cityActs(G, n, u);
     return h;
   };

@@ -800,6 +800,25 @@ tile card with the three actions, the enemy city row, the Cities map mode with n
 (checked in separate tabs). Not seen in the browser: a rising with named cities, the "city turns" headline, the arcs'
 new wording (headless only).
 
+### Follow-up: cities are places, not a currency
+
+Spamming cities next to the capital used to buy calm: each new city added voice with no lean, diluting the opposition,
+and cities on adjacent tiles each counted in full. Now `ID.canBuild` refuses a city within `ID.CITY_GAP` = 8 tiles of
+any other city, wreck or city under construction (`ID.cityNear`, `ID.tileDist`; start cities closer than that are kept;
+province centres sit 9–11 tiles apart, so nearly every province can still have one), and the AI skips such spots. A new
+city's record (`Ct.rec`) copies the lean, strength and unrest of its owner's nearest city, else the countryside, and
+remembers it in `r.from` (shown on the city card: "Founded from …"). Handbook and building text say both.
+`tools/structures.js` has 47 checks (adjacent city refused, a far one allowed, inheritance).
+
+| Measure | Session 12 | With spacing and inheritance |
+|---|---|---|
+| Historical pacing, 20 runs: civil wars / wars / peace median / largest avg (max) | 3.3 / 33.2 / 6.0 y / 21% (27%) | 3.7 / 31.2 / 6.4 y / 20% (31%) |
+| Random (simulate, 9 runs): civil wars / wars / largest avg (max) | 0.1 / 23.2 / 22% (36%) | 0.1 / 27.8 / 25% (48%) |
+| Human proxy, 8 runs: at war / peace median / fell | 8% / 6.3 y / 6 of 8 | 7% / 4.8 y / 5 of 8 |
+
+All within the run-to-run noise seen before. Browser: the City button is refused next to the capital with the reason,
+a far city built and its card reads "Founded from Morelica" with the capital's lean, no console errors.
+
 ## Published (end of session 2)
 
 - Playable artifact: slug `b44285db-2e8b-4266-bfe0-39315542a8b3` (https://claude.ai/artifact/PG38qVqd6iMyayLf4gaVKx), live version `1794778445-ed93` after the session 9 review fixes,
